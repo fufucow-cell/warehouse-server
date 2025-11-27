@@ -1,0 +1,180 @@
+{
+    "server_name": "warehouse_server",
+    "server_code": "4",
+    "routers": [
+        {
+            "router_name": "health",
+            "router_code": "40",
+            "errors": [
+                {
+                    "error_code": "400",
+                    "error_message": "Internal server error"
+                },
+                {
+                    "error_code": "401",
+                    "error_message": "Warehouse service failed"
+                },
+                {
+                    "error_code": "402",
+                    "error_message": "Request parameters invalid"
+                },
+                {
+                    "error_code": "403",
+                    "error_message": "Request path invalid"
+                },
+                {
+                    "error_code": "404",
+                    "error_message": "Unauthorized"
+                }
+            ]
+        },
+        {
+            "router_name": "cabinet",
+            "router_code": "41",
+            "errors": [
+                {
+                    "error_code": "410",
+                    "error_message": "Internal server error"
+                },
+                {
+                    "error_code": "411",
+                    "error_message": "Cabinet service failed"
+                },
+                {
+                    "error_code": "412",
+                    "error_message": "Request parameters invalid"
+                },
+                {
+                    "error_code": "413",
+                    "error_message": "Request path invalid"
+                },
+                {
+                    "error_code": "414",
+                    "error_message": "Unauthorized"
+                },
+                {
+                    "error_code": "415",
+                    "error_message": "Cabinet not found"
+                },
+                {
+                    "error_code": "416",
+                    "error_message": "Home not found"
+                },
+                {
+                    "error_code": "417",
+                    "error_message": "Room not found"
+                }
+            ]
+        },
+        {
+            "router_name": "item",
+            "router_code": "42",
+            "errors": [
+                {
+                    "error_code": "420",
+                    "error_message": "Internal server error"
+                },
+                {
+                    "error_code": "421",
+                    "error_message": "Item service failed"
+                },
+                {
+                    "error_code": "422",
+                    "error_message": "Request parameters invalid"
+                },
+                {
+                    "error_code": "423",
+                    "error_message": "Request path invalid"
+                },
+                {
+                    "error_code": "424",
+                    "error_message": "Unauthorized"
+                },
+                {
+                    "error_code": "425",
+                    "error_message": "Item not found"
+                },
+                {
+                    "error_code": "426",
+                    "error_message": "Cabinet not found"
+                },
+                {
+                    "error_code": "427",
+                    "error_message": "Home not found"
+                },
+                {
+                    "error_code": "428",
+                    "error_message": "Room not found"
+                }
+            ]
+        },
+        {
+            "router_name": "category",
+            "router_code": "43",
+            "errors": [
+                {
+                    "error_code": "430",
+                    "error_message": "Internal server error"
+                },
+                {
+                    "error_code": "431",
+                    "error_message": "Category service failed"
+                },
+                {
+                    "error_code": "432",
+                    "error_message": "Request parameters invalid"
+                },
+                {
+                    "error_code": "433",
+                    "error_message": "Request path invalid"
+                },
+                {
+                    "error_code": "434",
+                    "error_message": "Unauthorized"
+                },
+                {
+                    "error_code": "435",
+                    "error_message": "Category level exceeds maximum"
+                },
+                {
+                    "error_code": "436",
+                    "error_message": "Category not found"
+                },
+                {
+                    "error_code": "437",
+                    "error_message": "Home not found"
+                }
+            ]
+        },
+        {
+            "router_name": "log",
+            "router_code": "44",
+            "errors": [
+                {
+                    "error_code": "440",
+                    "error_message": "Internal server error"
+                },
+                {
+                    "error_code": "441",
+                    "error_message": "Log service failed"
+                },
+                {
+                    "error_code": "442",
+                    "error_message": "Request parameters invalid"
+                },
+                {
+                    "error_code": "443",
+                    "error_message": "Request path invalid"
+                },
+                {
+                    "error_code": "444",
+                    "error_message": "Unauthorized"
+                },
+                {
+                    "error_code": "445",
+                    "error_message": "Log not found"
+                }
+            ]
+        }
+    ]
+}

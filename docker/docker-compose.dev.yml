@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for Warehouse Server - DEV Environment
+  warehouse-postgres-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile-postgres.dev
+    container_name: warehouse-postgres-dev
+    environment:
+      POSTGRES_USER: cowlin
+      POSTGRES_PASSWORD: abc123
+      POSTGRES_DB: smartwarehouse_warehouse_dev
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5434:5432"
+    volumes:
+      - ../database/dev:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cowlin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warehouse-network-dev
+
+  # Warehouse Server - DEV Environment
+  warehouse-api-dev:
+    build:
+      context: ..  # 指向 warehouse_server 根目录
+      dockerfile: docker/Dockerfile-api.dev  # 使用 DEV 环境专用 Dockerfile
+    container_name: warehouse-api-dev
+    environment:
+      # API 配置
+      API_HOST: "0.0.0.0"
+      API_PORT: 8003
+      API_DEBUG: "true"  # DEV 环境开启调试
+      
+      # 数据库配置（连接到 warehouse-postgres-dev）
+      DB_HOST: warehouse-postgres-dev  # 使用内部服务名
+      DB_PORT: 5432
+      DB_USER: cowlin
+      DB_PASSWORD: abc123
+      DB_NAME: smartwarehouse_warehouse_dev
+      DB_DRIVER: postgresql
+      
+      # CORS 配置（DEV 允许所有来源）
+      CORS_ORIGINS: "*"
+      
+      # 控制台日志（DEV 可啟用）
+      LOG_REQUEST_CONSOLE: "false"
+      LOG_RESPONSE_CONSOLE: "false"
+    ports:
+      - "8003:8003"
+    volumes:
+      - ..:/app  # 开发模式：挂载代码目录，支持热重载（从 docker/ 到根目录，需要 1 层）
+    restart: unless-stopped
+    depends_on:
+      warehouse-postgres-dev:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload  # 开发模式：自动重载
+    networks:
+      - warehouse-network-dev  # 用于连接数据库
+      - smart-warehouse-network-dev  # 连接到统一网络，以便被 API Gateway 访问
+
+networks:
+  warehouse-network-dev:
+    name: warehouse-network-dev
+    driver: bridge
+  smart-warehouse-network-dev:
+    name: smart-warehouse-network-dev
+    external: true  # 使用外部网络（由 backend/docker/docker-compose.dev.yml 创建）
+
