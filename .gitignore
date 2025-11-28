@@ -43,6 +43,8 @@ log/
 # Storage
 storage/
 !storage/.gitkeep
+uploads/
+database/
 
 # OS
 .DS_Store
