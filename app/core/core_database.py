@@ -2,11 +2,16 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.core.core_config import settings
+import logging
+
+# 禁用 SQLAlchemy 引擎的 INFO 级别日志（只保留 WARNING 和 ERROR）
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 
 # 创建异步数据库引擎
 engine = create_async_engine(
     settings.database_url_async,
-    echo=settings.API_DEBUG,  # 在调试模式下打印 SQL 语句
+    echo=False,  # 禁用 echo，避免输出 SQL 查询日志
     future=True,
     pool_pre_ping=True,  # 连接前检查连接是否有效
     pool_recycle=3600,  # 1小时后回收连接

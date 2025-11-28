@@ -7,6 +7,10 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================
+-- Note: log.type 使用 VARCHAR 而不是 enum 类型
+-- ============================================
+
+-- ============================================
 -- Table: cabinet
 -- Description: 橱柜表，存储橱柜信息，关联到 household_server.room
 -- ============================================
@@ -71,8 +75,8 @@ COMMENT ON COLUMN category.level IS '分类层级：1=第一层，2=第二层，
 -- ============================================
 CREATE TABLE IF NOT EXISTS item (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cabinet_id UUID NOT NULL REFERENCES cabinet(id) ON DELETE CASCADE,
-    room_id INTEGER NOT NULL,  -- FK to household_server.room.id (跨服务，无法建立外键约束)
+    cabinet_id UUID REFERENCES cabinet(id) ON DELETE CASCADE,  -- 可选，物品可能不属于任何橱柜
+    room_id INTEGER,  -- FK to household_server.room.id (跨服务，无法建立外键约束，可选)
     home_id INTEGER NOT NULL,  -- FK to household_server.home.id (跨服务，无法建立外键约束)
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -95,8 +99,8 @@ CREATE INDEX IF NOT EXISTS idx_item_quantity ON item(quantity);
 -- ============================================
 COMMENT ON TABLE item IS '物品表，存储物品信息，关联到 cabinet';
 COMMENT ON COLUMN item.id IS '物品 ID（UUID）';
-COMMENT ON COLUMN item.cabinet_id IS '橱柜 ID（关联到 cabinet.id）';
-COMMENT ON COLUMN item.room_id IS '房间 ID（关联到 household_server.room.id，跨服务无法建立外键约束）';
+COMMENT ON COLUMN item.cabinet_id IS '橱柜 ID（关联到 cabinet.id，可选，物品可能不属于任何橱柜）';
+COMMENT ON COLUMN item.room_id IS '房间 ID（关联到 household_server.room.id，跨服务无法建立外键约束，可选）';
 COMMENT ON COLUMN item.home_id IS '家庭 ID（关联到 household_server.home.id，跨服务无法建立外键约束）';
 COMMENT ON COLUMN item.name IS '物品名称';
 COMMENT ON COLUMN item.description IS '物品描述';
@@ -151,3 +155,42 @@ COMMENT ON COLUMN item_log.id IS '日志 ID（UUID）';
 COMMENT ON COLUMN item_log.item_id IS '物品 ID（关联到 item.id）';
 COMMENT ON COLUMN item_log.type IS '日志类型：1=一般信息异动记录，2=告警类型（数量低于条件）';
 COMMENT ON COLUMN item_log.log_message IS '异动日志内容（数量增减、其他字段变更等）';
+
+-- ============================================
+-- Table: log
+-- Description: 操作日志表，记录用户对 cabinet、item 等的操作
+-- ============================================
+CREATE TABLE IF NOT EXISTS log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    home_id INTEGER NOT NULL,  -- FK to household_server.home.id (跨服务，无法建立外键约束)
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    state SMALLINT NOT NULL,  -- 操作状态：0=新增（create），1=更新（modify），2=删除（delete），后续可能扩充
+    item_type SMALLINT NOT NULL,  -- 物品类型：0=cabinet（橱柜），1=item（物品），后续可能扩充
+           operate_type SMALLINT[],  -- 操作类型数组：0=name（名称），1=description（描述），2=move（移动），3=quantity（数量），4=photo（照片），5=min_stock_alert（最低库存警报阈值）。仅在 state=1（modify）时使用，可包含多个操作类型，后续可能扩充
+    user_name VARCHAR(255) NOT NULL,  -- 用户名
+    type SMALLINT NOT NULL DEFAULT 0  -- 日志类型：0=一般（normal），1=警告（warning），后续可能扩充
+);
+
+-- Create indexes for log table
+CREATE INDEX IF NOT EXISTS idx_log_home_id ON log(home_id);
+CREATE INDEX IF NOT EXISTS idx_log_created_at ON log(created_at);
+CREATE INDEX IF NOT EXISTS idx_log_state ON log(state);
+CREATE INDEX IF NOT EXISTS idx_log_item_type ON log(item_type);
+-- 注意：operate_type 是数组类型，如果需要数组查询，可以使用 GIN 索引
+-- CREATE INDEX IF NOT EXISTS idx_log_operate_type ON log USING GIN (operate_type);
+CREATE INDEX IF NOT EXISTS idx_log_operate_type ON log(operate_type);
+CREATE INDEX IF NOT EXISTS idx_log_type ON log(type);
+CREATE INDEX IF NOT EXISTS idx_log_user_name ON log(user_name);
+
+-- ============================================
+-- Add comments for log table
+-- ============================================
+COMMENT ON TABLE log IS '操作日志表，记录用户对 cabinet、item 等的操作';
+COMMENT ON COLUMN log.id IS '日志 ID（UUID）';
+COMMENT ON COLUMN log.home_id IS '家庭 ID（关联到 household_server.home.id，跨服务无法建立外键约束）';
+COMMENT ON COLUMN log.created_at IS '创建时间';
+COMMENT ON COLUMN log.state IS '操作状态：0=新增（create），1=更新（modify），2=删除（delete），后续可能扩充';
+COMMENT ON COLUMN log.item_type IS '物品类型：0=cabinet（橱柜），1=item（物品），后续可能扩充';
+COMMENT ON COLUMN log.operate_type IS '操作类型数组：0=name（名称），1=description（描述），2=move（移动），3=quantity（数量），4=photo（照片）。仅在 state=1（modify）时使用，可包含多个操作类型，后续可能扩充';
+COMMENT ON COLUMN log.user_name IS '用户名';
+COMMENT ON COLUMN log.type IS '日志类型：0=一般（normal），1=警告（warning），后续可能扩充';

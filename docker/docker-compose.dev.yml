@@ -51,6 +51,10 @@ services:
       # 控制台日志（DEV 可啟用）
       LOG_REQUEST_CONSOLE: "false"
       LOG_RESPONSE_CONSOLE: "false"
+      
+      # 图片 URL 基础地址（通过 API Gateway 访问）
+      # 格式：http://IP:PORT（例如：http://localhost:8000 或 http://192.168.1.100:8000）
+      BASE_URL: "http://localhost:8000"  # DEV 环境默认使用 localhost
     ports:
       - "8003:8003"
     volumes:

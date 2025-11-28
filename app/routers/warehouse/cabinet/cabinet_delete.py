@@ -10,7 +10,11 @@ from app.schemas.warehouse_request import DeleteCabinetRequest
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
-from app.utils.util_validation import validate_user_can_modify_data
+from app.utils.util_log import create_log
+from app.models.log_model import StateType, ItemType, LogType
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -28,8 +32,28 @@ async def delete(
         if validation_error:
             return validation_error
         
+        # 獲取 cabinet 信息（用於記錄 log）
+        result = await db.execute(
+            select(Cabinet).where(Cabinet.id == request_data.cabinet_id)
+        )
+        cabinet = result.scalar_one()
+        home_id = cabinet.home_id
+        
         # 刪除櫥櫃資料
         await _delete_db_cabinet(request_data, db)
+        
+        # 建立操作日誌
+        log_result = await create_log(
+            db=db,
+            home_id=home_id,
+            state=StateType.DELETE,
+            item_type=ItemType.CABINET,
+            user_name=request_data.user_name,
+            operate_type=None,  # delete 操作不需要 operate_type
+            log_type=LogType.NORMAL,
+        )
+        if not log_result:
+            logger.warning("Failed to create cabinet log for cabinet_id=%s", str(request_data.cabinet_id))
         
         # 產生響應資料（不返回 data）
         return success_response()
@@ -70,16 +94,6 @@ async def _error_check(
     
     if not cabinet:
         return _error_handle(ServerErrorCode.CABINET_NOT_FOUND_41)
-    
-    # 驗證用戶是否有權限刪除該櫥櫃（驗證用戶是否屬於該櫥櫃所屬的家庭）
-    # 可以根據業務需求設置 require_role，例如只有 owner 或 admin 才能刪除
-    is_valid, error_code = await validate_user_can_modify_data(
-        user_id=user_id,
-        data_home_id=cabinet.home_id,
-        require_role=2  # 只有 owner(1) 或 admin(2) 才能刪除，member(3) 不能刪除
-    )
-    if not is_valid:
-        return _error_handle(error_code)
     
     return None
 

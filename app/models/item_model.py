@@ -11,8 +11,8 @@ class Item(Base):
     __tablename__ = "item"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    cabinet_id = Column(UUID(as_uuid=True), ForeignKey("cabinet.id", ondelete="CASCADE"), nullable=False, index=True, comment="橱柜 ID")
-    room_id = Column(Integer, nullable=False, index=True, comment="房间 ID（关联到 household_server.room.id）")
+    cabinet_id = Column(UUID(as_uuid=True), ForeignKey("cabinet.id", ondelete="CASCADE"), nullable=True, index=True, comment="橱柜 ID（可选，物品可能不属于任何橱柜）")
+    room_id = Column(Integer, nullable=True, index=True, comment="房间 ID（关联到 household_server.room.id，可选）")
     home_id = Column(Integer, nullable=False, index=True, comment="家庭 ID（关联到 household_server.home.id）")
     name = Column(String(255), nullable=False, comment="物品名称")
     description = Column(Text, nullable=True, comment="物品描述")

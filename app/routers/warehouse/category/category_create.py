@@ -23,7 +23,7 @@ async def create(
 ):
     get_request_id(request)
     try:
-        # 統一錯誤檢查
+        # 統一錯誤檢查（parent_id 的空字串已在 schema validator 中處理為 None）
         validation_error = await _error_check(request, request_data, db)
         if validation_error:
             return validation_error
@@ -31,11 +31,14 @@ async def create(
         # 創建分類資料
         new_category = await _create_db_category(request_data, db)
         
-        # 產生響應資料
-        response_data = CategoryResponse.model_validate(new_category).model_dump(
-            mode="json",
-            exclude_none=True,
-        )
+        # 產生響應資料（手動構建，避免觸發 SQLAlchemy relationship 懶加載）
+        # 不包含 home_id 和 parent_id
+        response_data = {
+            "id": str(new_category.id),
+            "name": new_category.name,
+            "level": new_category.level
+            # 不包含 children（新創建的分類沒有子分類）
+        }
         return success_response(data=response_data)
 
     except SQLAlchemyError as e:
@@ -87,6 +90,26 @@ async def _error_check(
     else:
         # 如果沒有 parent_id，level 必須是 1
         if request_data.level != 1:
+            return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
+    
+    # 檢查同一 level 下是否已存在相同名稱的分類
+    # 在同一个 home_id 下，同一个 level，同一个 parent_id（或都是 NULL）下，name 不能重复
+    query = select(Category).where(
+        Category.home_id == request_data.home_id,
+        Category.level == request_data.level,
+        Category.name == request_data.name.strip()
+    )
+    
+    # 如果 parent_id 存在，检查同一 parent_id 下是否有相同 name
+    # 如果 parent_id 为 NULL，检查同一 home_id、同一 level、parent_id 为 NULL 下是否有相同 name
+    if request_data.parent_id:
+        query = query.where(Category.parent_id == request_data.parent_id)
+    else:
+        query = query.where(Category.parent_id.is_(None))
+    
+    result = await db.execute(query)
+    existing_category = result.scalar_one_or_none()
+    if existing_category:
             return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
 
     return None

@@ -10,6 +10,10 @@ from app.schemas.warehouse_request import DeleteItemRequest
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
+from app.utils.util_file import delete_uploaded_file
+from app.utils.util_log import create_log
+from app.models.log_model import StateType, ItemType, LogType
+import logging
 
 router = APIRouter()
 
@@ -27,8 +31,28 @@ async def delete(
         if validation_error:
             return validation_error
         
+        # 獲取 item 信息（用於記錄 log）
+        result = await db.execute(
+            select(Item).where(Item.id == request_data.item_id)
+        )
+        item = result.scalar_one()
+        home_id = item.home_id
+        
         # 刪除物品資料
         await _delete_db_item(request_data, db)
+        
+        # 建立操作日誌
+        log_result = await create_log(
+            db=db,
+            home_id=home_id,
+            state=StateType.DELETE,
+            item_type=ItemType.ITEM,
+            user_name=request_data.user_name,
+            operate_type=None,  # delete 操作不需要 operate_type
+            log_type=LogType.NORMAL,
+        )
+        if not log_result:
+            logging.getLogger(__name__).warning("Failed to create item log for item_id=%s", str(request_data.item_id))
         
         # 產生響應資料（不返回 data）
         return success_response()
@@ -56,6 +80,9 @@ async def _error_check(
     if not request_data.item_id:
         return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
     
+    if not request_data.home_id:
+        return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
+    
     # 從 header 獲取 user_id（由 API Gateway 驗證 token 後設置）
     user_id = get_user_id_from_header(request)
     if not user_id:
@@ -68,7 +95,11 @@ async def _error_check(
     item = result.scalar_one_or_none()
     
     if not item:
-        return _error_handle(ServerErrorCode.REQUEST_PATH_INVALID_40)
+        return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
+    
+    # 驗證物品是否屬於該家庭
+    if item.home_id != request_data.home_id:
+        return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
     
     return None
 
@@ -81,6 +112,11 @@ async def _delete_db_item(
         select(Item).where(Item.id == request_data.item_id)
     )
     item = result.scalar_one()
+    
+    # 刪除對應的圖片文件（如果存在）
+    if item.photo:
+        delete_uploaded_file(item.photo)
+    
     await db.delete(item)
     await db.commit()
 

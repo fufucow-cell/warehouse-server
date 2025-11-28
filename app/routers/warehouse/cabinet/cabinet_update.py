@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,7 +10,9 @@ from app.schemas.warehouse_request import UpdateCabinetRequest
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
-from app.utils.util_validation import validate_user_can_modify_data, validate_home_and_room, validate_room_belongs_to_home
+from app.utils.util_log import create_log
+from app.models.log_model import StateType, ItemType, OperateType, LogType
+import logging
 
 router = APIRouter()
 
@@ -28,8 +30,36 @@ async def update(
         if validation_error:
             return validation_error
         
-        # 修改櫥櫃資料
-        await _update_db_cabinet(request_data, db)
+        # 獲取舊的 cabinet 信息（用於檢測字段變化）
+        old_result = await db.execute(
+            select(Cabinet).where(Cabinet.id == request_data.cabinet_id)
+        )
+        old_cabinet = old_result.scalar_one()
+        
+        # 立即保存舊值（避免 SQLAlchemy 對象被修改後影響比較）
+        old_values = {
+            'name': old_cabinet.name,
+            'description': old_cabinet.description,
+            'room_id': old_cabinet.room_id,
+            'home_id': old_cabinet.home_id
+        }
+        
+        # 修改櫥櫃資料（返回更新後的 cabinet 以便記錄 log）
+        updated_cabinet = await _update_db_cabinet(request_data, db)
+        
+        # 建立操作日誌
+        operate_types = _detect_operate_types(request_data, old_values, updated_cabinet)
+        log_result = await create_log(
+            db=db,
+            home_id=updated_cabinet.home_id,
+            state=StateType.MODIFY,
+            item_type=ItemType.CABINET,
+            user_name=request_data.user_name,
+            operate_type=operate_types if operate_types else None,
+            log_type=LogType.NORMAL,
+        )
+        if not log_result:
+            logging.getLogger(__name__).warning("Failed to create cabinet log for cabinet_id=%s", str(updated_cabinet.id))
         
         # 產生響應資料（不返回 data）
         return success_response()
@@ -74,60 +104,13 @@ async def _error_check(
     if not cabinet:
         return _error_handle(ServerErrorCode.CABINET_NOT_FOUND_41)
     
-    # 驗證用戶是否有權限修改該櫥櫃（驗證用戶是否屬於該櫥櫃所屬的家庭）
-    is_valid, error_code = await validate_user_can_modify_data(
-        user_id=user_id,
-        data_home_id=cabinet.home_id
-    )
-    if not is_valid:
-        return _error_handle(error_code)
-    
-    # 如果提供了 new_room_id，需要驗證 old_room_id 和 new_room_id 是否都屬於該家庭
-    if request_data.new_room_id is not None:
-        # 如果 cabinet 當前有 room_id，必須提供 old_room_id 來確認
-        if cabinet.room_id is not None:
-            if request_data.old_room_id is None:
-                return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_41)
-            
-            # 驗證 old_room_id 是否與當前 cabinet 的 room_id 匹配
-            if cabinet.room_id != request_data.old_room_id:
-                return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_41)
-        
-        # 如果提供了 old_room_id，驗證它是否屬於該家庭
-        if request_data.old_room_id is not None:
-            is_valid, error_code = await validate_room_belongs_to_home(
-                home_id=cabinet.home_id,
-                room_id=request_data.old_room_id
-            )
-            if not is_valid:
-                return _error_handle(error_code)
-        
-        # 驗證 new_room_id 是否屬於該家庭
-        is_valid, error_code = await validate_room_belongs_to_home(
-            home_id=cabinet.home_id,
-            room_id=request_data.new_room_id
-        )
-        if not is_valid:
-            return _error_handle(error_code)
-    
-    # 如果修改了 home_id，需要驗證新的 home_id 是否有效
-    if request_data.home_id is not None:
-        new_home_id = request_data.home_id
-        is_valid, error_code, _ = await validate_home_and_room(
-            user_id=user_id,
-            home_id=new_home_id,
-            room_id=None  # 不驗證 room_id，因為可能只是修改 home_id
-        )
-        if not is_valid:
-            return _error_handle(error_code)
-    
     return None
 
 # 修改櫥櫃資料
 async def _update_db_cabinet(
     request_data: UpdateCabinetRequest,
     db: AsyncSession
-) -> None:
+) -> Cabinet:
     result = await db.execute(
         select(Cabinet).where(Cabinet.id == request_data.cabinet_id)
     )
@@ -144,4 +127,54 @@ async def _update_db_cabinet(
         cabinet.description = request_data.description
     
     await db.commit()
+    await db.refresh(cabinet)
+    return cabinet
+
+
+# 檢測操作類型
+def _detect_operate_types(
+    request_data: UpdateCabinetRequest,
+    old_values: dict,
+    updated_cabinet: Cabinet
+) -> List[OperateType]:
+    """檢測哪些字段被修改了，返回對應的 OperateType 列表"""
+    operate_types: List[OperateType] = []
+    
+    # 檢查 name 是否被修改（使用保存的舊值進行比較）
+    if request_data.name is not None:
+        old_name = old_values['name'] if old_values['name'] is not None else ""
+        new_name = request_data.name if request_data.name is not None else ""
+        if old_name != new_name:
+            operate_types.append(OperateType.NAME)
+    
+    # 檢查 description 是否被修改（使用保存的舊值進行比較）
+    if request_data.description is not None:
+        # 處理 None 的情況：將 None 視為空字符串進行比較
+        old_desc = old_values['description'] if old_values['description'] is not None else ""
+        new_desc = request_data.description if request_data.description is not None else ""
+        if old_desc != new_desc:
+            operate_types.append(OperateType.DESCRIPTION)
+    
+    # 檢查是否移動（room_id 或 home_id 變化）
+    room_id_changed = False
+    home_id_changed = False
+    
+    if request_data.new_room_id is not None:
+        # 使用保存的舊值進行比較
+        old_room_id = old_values['room_id']
+        new_room_id = request_data.new_room_id
+        if old_room_id != new_room_id:
+            room_id_changed = True
+    
+    if request_data.home_id is not None:
+        # 使用保存的舊值進行比較
+        old_home_id = old_values['home_id']
+        new_home_id = request_data.home_id
+        if old_home_id != new_home_id:
+            home_id_changed = True
+    
+    if room_id_changed or home_id_changed:
+        operate_types.append(OperateType.MOVE)
+    
+    return operate_types
 

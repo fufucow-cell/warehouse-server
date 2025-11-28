@@ -38,20 +38,14 @@ async def fetch(
             if not item:
                 return _error_handle(ServerErrorCode.REQUEST_PATH_INVALID_40)
             
-            response_data = ItemResponse.model_validate(item).model_dump(
-                mode="json",
-                exclude_none=True,
-            )
+            response_data = _build_item_response_data(item)
             return success_response(data=response_data)
         
         # 如果帶入 cabinet_id，返回該櫥櫃的所有物品
         if cabinet_id is not None:
             items = await _get_db_items_by_cabinet(cabinet_id, db)
             items_data = [
-                ItemResponse.model_validate(item).model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
+                _build_item_response_data(item)
                 for item in items
             ]
             return success_response(data=items_data)
@@ -60,10 +54,7 @@ async def fetch(
         if home_id is not None:
             items = await _get_db_items_by_home(home_id, db)
             items_data = [
-                ItemResponse.model_validate(item).model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
+                _build_item_response_data(item)
                 for item in items
             ]
             return success_response(data=items_data)
@@ -115,4 +106,15 @@ async def _get_db_items_by_home(
         .where(Item.home_id == home_id)
     )
     return list(result.scalars().all())
+
+# 構建 Item 響應數據
+def _build_item_response_data(item: Item) -> dict:
+    """構建 Item 響應數據"""
+    response_data = ItemResponse.model_validate(item).model_dump(
+        mode="json",
+        exclude_none=True,
+    )
+    # 移除 url 字段（如果存在）
+    response_data.pop("url", None)
+    return response_data
 

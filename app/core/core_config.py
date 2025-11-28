@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     LOG_REQUEST_CONSOLE: bool = False
     LOG_RESPONSE_CONSOLE: bool = False
     
+    # 文件上传配置
+    UPLOAD_DIR: str = "uploads"  # 文件上传目录（相对于项目根目录）
+    MAX_UPLOAD_SIZE: int = 2 * 1024 * 1024  # 最大文件大小：2MB（建议值，10KB 太小，1-2MB 适合物品照片）
+    ALLOWED_IMAGE_EXTENSIONS: list[str] = [".jpg", ".jpeg", ".png"]  # 允许的图片扩展名
+    
+    # 图片 URL 基础地址（用于生成完整的图片访问 URL）
+    # 格式：http://IP:PORT（例如：http://localhost:8000 或 http://192.168.1.100:8000）
+    BASE_URL: str = "http://localhost:8000"  # 默认使用 API Gateway 地址
+    
     # 构建数据库 URL（支持异步和同步）
     @property
     def database_url(self) -> str:

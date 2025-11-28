@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
 from app.routers import health, warehouse
 from app.core.core_config import settings
 from app.core.core_database import get_db
@@ -41,6 +43,11 @@ app.add_exception_handler(Exception, global_exception_handler)  # 捕获所有�
 # Include routers
 app.include_router(health.router, tags=["health"])
 app.include_router(warehouse.router, prefix="/api/v1/warehouse", tags=["warehouse"])
+
+# 静态文件服务 - 用于访问上传的文件
+upload_dir = Path(__file__).parent / settings.UPLOAD_DIR
+upload_dir.mkdir(parents=True, exist_ok=True)
+app.mount(f"/{settings.UPLOAD_DIR}", StaticFiles(directory=str(upload_dir)), name="uploads")
 
 @app.get("/")
 async def root(request: Request, db: AsyncSession = Depends(get_db)):
