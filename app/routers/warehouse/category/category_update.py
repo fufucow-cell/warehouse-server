@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.category_model import Category
-from app.schemas.warehouse_request import UpdateCategoryRequest
-from app.schemas.warehouse_response import CategoryResponse
+from app.db.session import get_db
+from app.table.category_model import Category
+from app.schemas.category_request import UpdateCategoryRequestModel
+from app.schemas.category_response import CategoryResponseModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
@@ -18,7 +18,7 @@ router = APIRouter()
 # 路由入口
 @router.put("/", response_class=JSONResponse)
 async def update(
-    request_data: UpdateCategoryRequest,
+    request_data: UpdateCategoryRequestModel,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
@@ -71,7 +71,7 @@ def _error_handle(internal_code: int) -> JSONResponse:
 # 自定義錯誤檢查
 async def _error_check(
     request: Request,
-    request_data: UpdateCategoryRequest,
+    request_data: UpdateCategoryRequestModel,
     db: AsyncSession
 ) -> Optional[JSONResponse]:
     # 檢查必要參數
@@ -108,7 +108,7 @@ async def _error_check(
         # 如果目標 level 是 1，忽略 parent_id 驗證（level 1 不應該有 parent_id）
         if target_level == 1:
             # level 1 時，parent_id 應該為 None，這裡不驗證 parent_id
-            pass
+            passf
         else:
             # level > 1 時，驗證 parent_id 是否存在
             parent_result = await db.execute(
@@ -122,7 +122,7 @@ async def _error_check(
 
 # 修改分類資料
 async def _update_db_category(
-    request_data: UpdateCategoryRequest,
+    request_data: UpdateCategoryRequestModel,
     db: AsyncSession
 ) -> Category:
     result = await db.execute(

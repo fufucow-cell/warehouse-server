@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import func
 import uuid
 import enum
-from app.core.core_database import Base
+from app.db.base import Base
 
 
 class StateType(int, enum.Enum):

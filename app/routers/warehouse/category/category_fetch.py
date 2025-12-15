@@ -6,9 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.category_model import Category
-from app.schemas.warehouse_response import CategoryResponse
+from app.db.session import get_db
+from app.table.category_model import Category
+from app.schemas.category_response import CategoryResponseModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header

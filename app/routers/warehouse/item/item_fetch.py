@@ -6,10 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.item_model import Item
-from app.models.cabinet_model import Cabinet
-from app.schemas.warehouse_response import ItemResponse
+from app.db.session import get_db
+from app.table.item_model import Item
+from app.table.cabinet_model import Cabinet
+from app.schemas.item_response import ItemResponseModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
@@ -22,7 +22,7 @@ async def fetch(
     request: Request,
     item_id: Optional[UUID] = Query(None, description="Item ID"),
     cabinet_id: Optional[UUID] = Query(None, description="Cabinet ID"),
-    home_id: Optional[int] = Query(None, description="Home ID"),
+    household_id: Optional[UUID] = Query(None, description="Household ID"),
     db: AsyncSession = Depends(get_db)
 ):
     get_request_id(request)
@@ -30,16 +30,16 @@ async def fetch(
         # 從 header 獲取 user_id（由 API Gateway 驗證 token 後設置）
         user_id = get_user_id_from_header(request)
         if not user_id:
-            return _error_handle(ServerErrorCode.UNAUTHORIZED_40)
+            return _error_handle(ServerErrorCode.UNAUTHORIZED_40, request)
 
         # 如果帶入 item_id，返回單筆物品詳細資料
         if item_id is not None:
             item = await _get_db_item(item_id, db)
             if not item:
-                return _error_handle(ServerErrorCode.REQUEST_PATH_INVALID_40)
+                return _error_handle(ServerErrorCode.REQUEST_PATH_INVALID_40, request)
             
             response_data = _build_item_response_data(item)
-            return success_response(data=response_data)
+            return success_response(data=response_data, request=request)
         
         # 如果帶入 cabinet_id，返回該櫥櫃的所有物品
         if cabinet_id is not None:
@@ -48,28 +48,28 @@ async def fetch(
                 _build_item_response_data(item)
                 for item in items
             ]
-            return success_response(data=items_data)
+            return success_response(data=items_data, request=request)
         
-        # 如果帶入 home_id，返回該家庭的所有物品
-        if home_id is not None:
-            items = await _get_db_items_by_home(home_id, db)
+        # 如果帶入 household_id，返回該家庭的所有物品
+        if household_id is not None:
+            items = await _get_db_items_by_home(household_id, db)
             items_data = [
                 _build_item_response_data(item)
                 for item in items
             ]
-            return success_response(data=items_data)
+            return success_response(data=items_data, request=request)
         
         # 如果都沒有，返回錯誤
-        return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
+        return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40, request)
 
     except SQLAlchemyError:
-        return _error_handle(ServerErrorCode.INTERNAL_SERVER_ERROR_40)
+        return _error_handle(ServerErrorCode.INTERNAL_SERVER_ERROR_40, request)
     except Exception:
-        return _error_handle(ServerErrorCode.INTERNAL_SERVER_ERROR_40)
+        return _error_handle(ServerErrorCode.INTERNAL_SERVER_ERROR_40, request)
 
 # 自定義錯誤處理
-def _error_handle(internal_code: int) -> JSONResponse:
-    return error_response(internal_code=internal_code)
+def _error_handle(internal_code: int, request: Optional[Request] = None) -> JSONResponse:
+    return error_response(internal_code=internal_code, request=request)
 
 # 獲取單筆物品
 async def _get_db_item(
@@ -97,20 +97,20 @@ async def _get_db_items_by_cabinet(
 
 # 獲取家庭的所有物品
 async def _get_db_items_by_home(
-    home_id: int,
+    household_id: UUID,
     db: AsyncSession
 ) -> list[Item]:
     result = await db.execute(
         select(Item)
         .options(selectinload(Item.categories))
-        .where(Item.home_id == home_id)
+        .where(Item.household_id == household_id)
     )
     return list(result.scalars().all())
 
 # 構建 Item 響應數據
 def _build_item_response_data(item: Item) -> dict:
     """構建 Item 響應數據"""
-    response_data = ItemResponse.model_validate(item).model_dump(
+    response_data = ItemResponseModel.model_validate(item).model_dump(
         mode="json",
         exclude_none=True,
     )

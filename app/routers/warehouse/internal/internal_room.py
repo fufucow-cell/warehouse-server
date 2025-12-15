@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.core_config import settings
-from app.core.core_database import get_db
+from app.db.session import get_db
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id

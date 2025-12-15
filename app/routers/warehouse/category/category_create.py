@@ -4,10 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.category_model import Category
-from app.schemas.warehouse_request import CreateCategoryRequest
-from app.schemas.warehouse_response import CategoryResponse
+from app.db.session import get_db
+from app.table.category_model import Category
+from app.schemas.category_request import CreateCategoryRequestModel
+from app.schemas.category_response import CategoryResponseModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
@@ -17,7 +17,7 @@ router = APIRouter()
 # 路由入口
 @router.post("/", response_class=JSONResponse)
 async def create(
-    request_data: CreateCategoryRequest,
+    request_data: CreateCategoryRequestModel,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
@@ -63,7 +63,7 @@ def _error_handle(internal_code: int) -> JSONResponse:
 # 自定義錯誤檢查
 async def _error_check(
     request: Request,
-    request_data: CreateCategoryRequest,
+    request_data: CreateCategoryRequestModel,
     db: AsyncSession
 ) -> Optional[JSONResponse]:
     # 檢查必要參數
@@ -116,7 +116,7 @@ async def _error_check(
 
 # 創建分類資料
 async def _create_db_category(
-    request_data: CreateCategoryRequest,
+    request_data: CreateCategoryRequestModel,
     db: AsyncSession
 ) -> Category:
     """創建分類資料"""

@@ -6,9 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.sql import delete as sql_delete
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.category_model import Category
-from app.schemas.warehouse_request import DeleteCategoryRequest
+from app.db.session import get_db
+from app.table.category_model import Category
+from app.schemas.category_request import DeleteCategoryRequestModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
@@ -18,7 +18,7 @@ router = APIRouter()
 # 路由入口
 @router.delete("/", response_class=JSONResponse)
 async def delete(
-    request_data: DeleteCategoryRequest,
+    request_data: DeleteCategoryRequestModel,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
@@ -57,7 +57,7 @@ def _error_handle(internal_code: int) -> JSONResponse:
 # 自定義錯誤檢查
 async def _error_check(
     request: Request,
-    request_data: DeleteCategoryRequest,
+    request_data: DeleteCategoryRequestModel,
     db: AsyncSession
 ) -> Optional[JSONResponse]:
     # 檢查必要參數
@@ -86,7 +86,7 @@ async def _error_check(
 
 # 刪除分類資料
 async def _delete_db_category(
-    request_data: DeleteCategoryRequest,
+    request_data: DeleteCategoryRequestModel,
     db: AsyncSession
 ) -> None:
     """

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathlib import Path
 from app.routers import health, warehouse
 from app.core.core_config import settings
-from app.core.core_database import get_db
+from app.db.session import get_db
 from app.utils.util_error_handle import (
     http_exception_handler,
     validation_exception_handler,

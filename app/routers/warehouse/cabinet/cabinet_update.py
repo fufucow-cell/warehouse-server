@@ -4,14 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.cabinet_model import Cabinet
-from app.schemas.warehouse_request import UpdateCabinetRequest
+from app.db.session import get_db
+from app.table.cabinet_model import Cabinet
+from app.schemas.cabinet_request import UpdateCabinetRequestModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
 from app.utils.util_log import create_log
-from app.models.log_model import StateType, ItemType, OperateType, LogType
+from app.table.log_model import StateType, ItemType, OperateType, LogType
 import logging
 
 router = APIRouter()
@@ -19,7 +19,7 @@ router = APIRouter()
 # 路由入口
 @router.put("/", response_class=JSONResponse)
 async def update(
-    request_data: UpdateCabinetRequest,
+    request_data: UpdateCabinetRequestModel,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
@@ -41,7 +41,7 @@ async def update(
             'name': old_cabinet.name,
             'description': old_cabinet.description,
             'room_id': old_cabinet.room_id,
-            'home_id': old_cabinet.home_id
+            'household_id': old_cabinet.household_id
         }
         
         # 修改櫥櫃資料（返回更新後的 cabinet 以便記錄 log）
@@ -51,7 +51,7 @@ async def update(
         operate_types = _detect_operate_types(request_data, old_values, updated_cabinet)
         log_result = await create_log(
             db=db,
-            home_id=updated_cabinet.home_id,
+            home_id=updated_cabinet.household_id,
             state=StateType.MODIFY,
             item_type=ItemType.CABINET,
             user_name=request_data.user_name,
@@ -80,7 +80,7 @@ def _error_handle(internal_code: int) -> JSONResponse:
 # 自定義錯誤檢查
 async def _error_check(
     request: Request,
-    request_data: UpdateCabinetRequest,
+    request_data: UpdateCabinetRequestModel,
     db: AsyncSession
 ) -> Optional[JSONResponse]:
     # 檢查必要參數
@@ -108,7 +108,7 @@ async def _error_check(
 
 # 修改櫥櫃資料
 async def _update_db_cabinet(
-    request_data: UpdateCabinetRequest,
+    request_data: UpdateCabinetRequestModel,
     db: AsyncSession
 ) -> Cabinet:
     result = await db.execute(
@@ -116,11 +116,11 @@ async def _update_db_cabinet(
     )
     cabinet = result.scalar_one()
     
-    # 更新 new_room_id（如果提供）
-    if request_data.new_room_id is not None:
-        cabinet.room_id = request_data.new_room_id
-    if request_data.home_id is not None:
-        cabinet.home_id = request_data.home_id
+    # 更新 room_id（如果提供）
+    if request_data.room_id is not None:
+        cabinet.room_id = request_data.room_id
+    if request_data.household_id is not None:
+        cabinet.household_id = request_data.household_id
     if request_data.name is not None:
         cabinet.name = request_data.name
     if request_data.description is not None:
@@ -133,7 +133,7 @@ async def _update_db_cabinet(
 
 # 檢測操作類型
 def _detect_operate_types(
-    request_data: UpdateCabinetRequest,
+    request_data: UpdateCabinetRequestModel,
     old_values: dict,
     updated_cabinet: Cabinet
 ) -> List[OperateType]:
@@ -155,25 +155,25 @@ def _detect_operate_types(
         if old_desc != new_desc:
             operate_types.append(OperateType.DESCRIPTION)
     
-    # 檢查是否移動（room_id 或 home_id 變化）
+    # 檢查是否移動（room_id 或 household_id 變化）
     room_id_changed = False
-    home_id_changed = False
+    household_id_changed = False
     
-    if request_data.new_room_id is not None:
+    if request_data.room_id is not None:
         # 使用保存的舊值進行比較
         old_room_id = old_values['room_id']
-        new_room_id = request_data.new_room_id
+        new_room_id = request_data.room_id
         if old_room_id != new_room_id:
             room_id_changed = True
     
-    if request_data.home_id is not None:
+    if request_data.household_id is not None:
         # 使用保存的舊值進行比較
-        old_home_id = old_values['home_id']
-        new_home_id = request_data.home_id
-        if old_home_id != new_home_id:
-            home_id_changed = True
+        old_household_id = old_values['household_id']
+        new_household_id = request_data.household_id
+        if old_household_id != new_household_id:
+            household_id_changed = True
     
-    if room_id_changed or home_id_changed:
+    if room_id_changed or household_id_changed:
         operate_types.append(OperateType.MOVE)
     
     return operate_types

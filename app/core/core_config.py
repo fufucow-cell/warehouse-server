@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     API_PORT: int = 8003  # Warehouse server uses dedicated port
     API_DEBUG: bool = False
     APP_ENV: str = "dev"
+    APP_NAME: str = "warehouse_server"  # 应用名称（用于数据库连接标识）
     
     # 数据库配置（待資料庫提供後可透過環境變數覆寫）
     DB_HOST: str = "localhost"
@@ -18,9 +19,6 @@ class Settings(BaseSettings):
     DB_NAME: str = "smartwarehouse_warehouse_dev"
     DB_DRIVER: str = "postgresql"
     
-    # 内部服务配置（用于跨服务调用）
-    HOUSEHOLD_SERVER_URL: str = "http://localhost:8002"
-    
     # JWT 配置（与 auth_server 共享）
     JWT_SECRET_KEY: str = "your-secret-key-change-this-in-production"
     JWT_ALGORITHM: str = "HS256"
@@ -28,9 +26,13 @@ class Settings(BaseSettings):
     # CORS 配置（环境变量中使用逗号分隔，如：http://localhost:3000,http://localhost:8080）
     CORS_ORIGINS: str = "*"
     
-    # 控制台日志开关（主要用于本地開發調試）
-    LOG_REQUEST_CONSOLE: bool = False
-    LOG_RESPONSE_CONSOLE: bool = False
+    # 日志开关
+    ENABLE_LOG: bool = True
+
+    # 字段长度常量
+    TABLE_MAX_LENGTH_NAME: int = 100 
+    TABLE_MAX_LENGTH_DESCRIPTION: int = 200
+    TABLE_MAX_LENGTH_LINK: int = 500
     
     # 文件上传配置
     UPLOAD_DIR: str = "uploads"  # 文件上传目录（相对于项目根目录）
@@ -38,23 +40,19 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_EXTENSIONS: list[str] = [".jpg", ".jpeg", ".png"]  # 允许的图片扩展名
     
     # 图片 URL 基础地址（用于生成完整的图片访问 URL）
-    # 格式：http://IP:PORT（例如：http://localhost:8000 或 http://192.168.1.100:8000）
-    BASE_URL: str = "http://localhost:8000"  # 默认使用 API Gateway 地址
+    BASE_URL: str = "http://localhost:8000"
     
     # 构建数据库 URL（支持异步和同步）
     @property
     def database_url(self) -> str:
-        """同步数据库连接 URL"""
         return f"{self.DB_DRIVER}://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     @property
     def database_url_async(self) -> str:
-        """异步数据库连接 URL (使用 asyncpg)"""
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     @property
     def cors_origins_list(self) -> list[str]:
-        """获取 CORS 来源列表"""
         if self.CORS_ORIGINS == "*":
             return ["*"]
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]

@@ -5,19 +5,19 @@ from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.item_model import Item, ItemCategory
-from app.models.category_model import Category
-from app.schemas.warehouse_request import UpdateItemRequest
-from app.schemas.warehouse_response import ItemResponse
+from app.db.session import get_db
+from app.table.item_model import Item, ItemCategory
+from app.table.category_model import Category
+from app.schemas.item_request import UpdateItemRequestModel
+from app.schemas.item_response import ItemResponseModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from typing import List
 from app.utils.util_request import get_request_id, get_user_id_from_header
-from app.models.cabinet_model import Cabinet
+from app.table.cabinet_model import Cabinet
 from app.utils.util_file import save_base64_image, delete_uploaded_file
 from app.utils.util_log import create_log
-from app.models.log_model import StateType, ItemType, OperateType, LogType
+from app.table.log_model import StateType, ItemType, OperateType, LogType
 import logging
 
 router = APIRouter()
@@ -25,7 +25,7 @@ router = APIRouter()
 # 路由入口
 @router.put("/", response_class=JSONResponse)
 async def update(
-    request_data: UpdateItemRequest,
+    request_data: UpdateItemRequestModel,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
@@ -46,7 +46,7 @@ async def update(
             old_photo_url = old_item.photo if old_item else None
             
             # 保存新圖片
-            photo_url, error_msg = save_base64_image(request_data.photo)
+            photo_url = save_base64_image(request_data.photo)
             if not photo_url:
                 # 圖片處理失敗，返回錯誤
                 return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
@@ -72,7 +72,7 @@ async def update(
             'min_stock_alert': old_item.min_stock_alert,
             'cabinet_id': old_item.cabinet_id,
             'room_id': old_item.room_id,
-            'home_id': old_item.home_id,
+            'household_id': old_item.household_id,
             'photo': old_item.photo
         }
         
@@ -83,7 +83,7 @@ async def update(
         operate_types = _detect_operate_types(request_data, old_values, updated_item)
         log_result = await create_log(
             db=db,
-            home_id=updated_item.home_id,
+            home_id=updated_item.household_id,
             state=StateType.MODIFY,
             item_type=ItemType.ITEM,
             user_name=request_data.user_name,
@@ -94,7 +94,7 @@ async def update(
             logging.getLogger(__name__).warning("Failed to create item log for item_id=%s", str(updated_item.id))
         
         # 產生響應資料
-        response_data = ItemResponse.model_validate(updated_item).model_dump(
+        response_data = ItemResponseModel.model_validate(updated_item).model_dump(
             mode="json",
             exclude_none=True,
         )
@@ -118,7 +118,7 @@ def _error_handle(internal_code: int) -> JSONResponse:
 # 自定義錯誤檢查
 async def _error_check(
     request: Request,
-    request_data: UpdateItemRequest,
+    request_data: UpdateItemRequestModel,
     db: AsyncSession
 ) -> Optional[JSONResponse]:
     # 檢查必要參數
@@ -142,27 +142,27 @@ async def _error_check(
     if not item:
         return _error_handle(ServerErrorCode.ITEM_NOT_FOUND_42)
     
-    # 驗證 item 的 home_id 是否與請求中的 home_id 匹配
-    if item.home_id != request_data.home_id:
+    # 驗證 item 的 household_id 是否與請求中的 household_id 匹配
+    if item.household_id != request_data.household_id:
         return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
     
-    # 如果提供了 new_cabinet_id，需要驗證 new_cabinet_id 是否存在且屬於該家庭
-    if request_data.new_cabinet_id is not None:
-        # 檢查 new_cabinet_id 是否存在
+    # 如果提供了 cabinet_id，需要驗證 cabinet_id 是否存在且屬於該家庭
+    if request_data.cabinet_id is not None:
+        # 檢查 cabinet_id 是否存在
         result = await db.execute(
-            select(Cabinet).where(Cabinet.id == request_data.new_cabinet_id)
+            select(Cabinet).where(Cabinet.id == request_data.cabinet_id)
         )
         new_cabinet = result.scalar_one_or_none()
         if not new_cabinet:
             return _error_handle(ServerErrorCode.CABINET_NOT_FOUND_42)
         
-        # 驗證 new_cabinet 的 home_id 是否與 item 的 home_id 匹配
-        if new_cabinet.home_id != item.home_id:
+        # 驗證 new_cabinet 的 household_id 是否與 item 的 household_id 匹配
+        if new_cabinet.household_id != item.household_id:
             return _error_handle(ServerErrorCode.CABINET_NOT_FOUND_42)
     
     # 檢查新分類是否存在（如果提供了新分類）
-    if request_data.new_category_ids:
-        for category_id in request_data.new_category_ids:
+    if request_data.category_ids:
+        for category_id in request_data.category_ids:
             result = await db.execute(
                 select(Category).where(Category.id == category_id)
             )
@@ -174,7 +174,7 @@ async def _error_check(
 
 # 修改物品資料
 async def _update_db_item(
-    request_data: UpdateItemRequest,
+    request_data: UpdateItemRequestModel,
     db: AsyncSession
 ) -> Item:
     """修改物品資料並返回更新後的 Item"""
@@ -183,16 +183,16 @@ async def _update_db_item(
     )
     item = result.scalar_one()
     
-    # 更新 new_cabinet_id（如果提供）
-    if request_data.new_cabinet_id is not None:
-        item.cabinet_id = request_data.new_cabinet_id
+    # 更新 cabinet_id（如果提供）
+    if request_data.cabinet_id is not None:
+        item.cabinet_id = request_data.cabinet_id
     
-    # 更新 new_room_id（如果提供）
-    if request_data.new_room_id is not None:
-        item.room_id = request_data.new_room_id
+    # 更新 room_id（如果提供）
+    if request_data.room_id is not None:
+        item.room_id = request_data.room_id
     
-    if request_data.home_id is not None:
-        item.home_id = request_data.home_id
+    if request_data.household_id is not None:
+        item.household_id = request_data.household_id
     if request_data.name is not None:
         item.name = request_data.name
     if request_data.description is not None:
@@ -205,13 +205,13 @@ async def _update_db_item(
         item.photo = request_data.photo
     
     # 更新分類關聯（如果提供了新分類）
-    if request_data.new_category_ids is not None:
+    if request_data.category_ids is not None:
         # 刪除現有的分類關聯
         await db.execute(
             delete(ItemCategory).where(ItemCategory.item_id == request_data.item_id)
         )
         # 添加新的分類關聯
-        for category_id in request_data.new_category_ids:
+        for category_id in request_data.category_ids:
             item_category = ItemCategory(
                 item_id=request_data.item_id,
                 category_id=category_id
@@ -232,7 +232,7 @@ async def _update_db_item(
 
 # 檢測操作類型
 def _detect_operate_types(
-    request_data: UpdateItemRequest,
+    request_data: UpdateItemRequestModel,
     old_values: dict,
     updated_item: Item
 ) -> List[OperateType]:
@@ -270,27 +270,27 @@ def _detect_operate_types(
         if old_photo != new_photo:
             operate_types.append(OperateType.PHOTO)
     
-    # 檢查是否移動（cabinet_id, room_id 或 home_id 變化）
+    # 檢查是否移動（cabinet_id, room_id 或 household_id 變化）
     cabinet_id_changed = False
     room_id_changed = False
-    home_id_changed = False
+    household_id_changed = False
     
-    if request_data.new_cabinet_id is not None:
+    if request_data.cabinet_id is not None:
         # 使用保存的舊值進行比較
-        if old_values['cabinet_id'] != request_data.new_cabinet_id:
+        if old_values['cabinet_id'] != request_data.cabinet_id:
             cabinet_id_changed = True
     
-    if request_data.new_room_id is not None:
+    if request_data.room_id is not None:
         # 使用保存的舊值進行比較
-        if old_values['room_id'] != request_data.new_room_id:
+        if old_values['room_id'] != request_data.room_id:
             room_id_changed = True
     
-    if request_data.home_id is not None:
+    if request_data.household_id is not None:
         # 使用保存的舊值進行比較
-        if old_values['home_id'] != request_data.home_id:
-            home_id_changed = True
+        if old_values['household_id'] != request_data.household_id:
+            household_id_changed = True
     
-    if cabinet_id_changed or room_id_changed or home_id_changed:
+    if cabinet_id_changed or room_id_changed or household_id_changed:
         operate_types.append(OperateType.MOVE)
     
     return operate_types

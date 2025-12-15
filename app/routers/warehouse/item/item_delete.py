@@ -4,15 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.item_model import Item
-from app.schemas.warehouse_request import DeleteItemRequest
+from app.db.session import get_db
+from app.table.item_model import Item
+from app.schemas.item_request import DeleteItemRequestModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
 from app.utils.util_file import delete_uploaded_file
 from app.utils.util_log import create_log
-from app.models.log_model import StateType, ItemType, LogType
+from app.table.log_model import StateType, ItemType, LogType
 import logging
 
 router = APIRouter()
@@ -20,7 +20,7 @@ router = APIRouter()
 # 路由入口
 @router.delete("/", response_class=JSONResponse)
 async def delete(
-    request_data: DeleteItemRequest,
+    request_data: DeleteItemRequestModel,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
@@ -36,7 +36,7 @@ async def delete(
             select(Item).where(Item.id == request_data.item_id)
         )
         item = result.scalar_one()
-        home_id = item.home_id
+        household_id = item.household_id
         
         # 刪除物品資料
         await _delete_db_item(request_data, db)
@@ -44,7 +44,7 @@ async def delete(
         # 建立操作日誌
         log_result = await create_log(
             db=db,
-            home_id=home_id,
+            home_id=household_id,
             state=StateType.DELETE,
             item_type=ItemType.ITEM,
             user_name=request_data.user_name,
@@ -73,14 +73,14 @@ def _error_handle(internal_code: int) -> JSONResponse:
 # 自定義錯誤檢查
 async def _error_check(
     request: Request,
-    request_data: DeleteItemRequest,
+    request_data: DeleteItemRequestModel,
     db: AsyncSession
 ) -> Optional[JSONResponse]:
     # 檢查必要參數
     if not request_data.item_id:
         return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
     
-    if not request_data.home_id:
+    if not request_data.household_id:
         return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
     
     # 從 header 獲取 user_id（由 API Gateway 驗證 token 後設置）
@@ -98,14 +98,14 @@ async def _error_check(
         return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
     
     # 驗證物品是否屬於該家庭
-    if item.home_id != request_data.home_id:
+    if item.household_id != request_data.household_id:
         return _error_handle(ServerErrorCode.REQUEST_PARAMETERS_INVALID_40)
     
     return None
 
 # 刪除物品資料
 async def _delete_db_item(
-    request_data: DeleteItemRequest,
+    request_data: DeleteItemRequestModel,
     db: AsyncSession
 ) -> None:
     result = await db.execute(

@@ -129,7 +129,59 @@ def get_file_path_from_url(photo_url: Optional[str]) -> Optional[Path]:
         return None
 
 
-def save_base64_image(base64_str: str) -> Tuple[Optional[str], Optional[str]]:
+def validate_base64_image(base64_str: str) -> bool:
+    """
+    驗證 base64 字符串是否為有效的圖片格式
+    
+    Args:
+        base64_str: base64 字符串（格式：data:image/jpeg;base64,xxx 或直接 base64 字符串）
+    
+    Returns:
+        bool: 如果為有效的 base64 圖片格式返回 True，否則返回 False
+    """
+    if not base64_str or not base64_str.strip():
+        return False
+    
+    try:
+        # 解析 base64 字符串
+        base64_data = base64_str
+        file_extension = ".jpg"  # 默認擴展名為 jpg
+        
+        if base64_str.startswith("data:image/"):
+            # 解析 data URI
+            header, base64_data = base64_str.split(",", 1)
+            # 從 header 中提取文件類型，僅支持 jpg 和 png
+            if "jpeg" in header.lower() or "jpg" in header.lower():
+                file_extension = ".jpg"
+            elif "png" in header.lower():
+                file_extension = ".png"
+            else:
+                return False
+        
+        # 驗證文件擴展名（僅允許 jpg 和 png）
+        if file_extension not in [".jpg", ".png"]:
+            return False
+        
+        # 解碼 base64
+        try:
+            image_data = base64.b64decode(base64_data)
+        except Exception:
+            return False
+        
+        # 驗證文件大小
+        file_size = len(image_data)
+        if file_size == 0:
+            return False
+        
+        if file_size > settings.MAX_UPLOAD_SIZE:
+            return False
+        
+        return True
+    except Exception:
+        return False
+
+
+def save_base64_image(base64_str: str) -> Optional[str]:
     """
     将 base64 字符串保存为图片文件
     
@@ -137,12 +189,14 @@ def save_base64_image(base64_str: str) -> Tuple[Optional[str], Optional[str]]:
         base64_str: base64 字符串（格式：data:image/jpeg;base64,xxx 或直接 base64 字符串）
     
     Returns:
-        Tuple[Optional[str], Optional[str]]: (file_url, error_message)
-        - file_url: 文件的 URL 路径，成功时返回，失败时返回 None
-        - error_message: 错误消息，失败时返回，成功时返回 None
+        Optional[str]: 文件的 URL 路径，成功时返回，失败时返回 None
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     if not base64_str or not base64_str.strip():
-        return None, "Base64 字符串为空"
+        logger.error("Base64 字符串为空")
+        return None
     
     try:
         # 解析 base64 字符串
@@ -160,26 +214,31 @@ def save_base64_image(base64_str: str) -> Tuple[Optional[str], Optional[str]]:
             elif "png" in header.lower():
                 file_extension = ".png"
             else:
-                return None, f"不支持的图片格式：{header}，仅支持 jpg 和 png"
+                logger.error(f"不支持的图片格式：{header}，仅支持 jpg 和 png")
+                return None
         
         # 验证文件扩展名（仅允许 jpg 和 png）
         if file_extension not in [".jpg", ".png"]:
-            return None, "不支持的图片格式，仅支持 jpg 和 png"
+            logger.error("不支持的图片格式，仅支持 jpg 和 png")
+            return None
         
         # 解码 base64
         try:
             image_data = base64.b64decode(base64_data)
         except Exception as e:
-            return None, f"Base64 解码失败：{str(e)}"
+            logger.error(f"Base64 解码失败：{str(e)}", exc_info=True)
+            return None
         
         # 验证文件大小
         file_size = len(image_data)
         if file_size == 0:
-            return None, "图片文件为空"
+            logger.error("图片文件为空")
+            return None
         
         if file_size > settings.MAX_UPLOAD_SIZE:
             max_size_mb = settings.MAX_UPLOAD_SIZE / (1024 * 1024)
-            return None, f"图片文件过大，最大支持 {max_size_mb}MB"
+            logger.error(f"图片文件过大，最大支持 {max_size_mb}MB，当前文件大小：{file_size / (1024 * 1024):.2f}MB")
+            return None
         
         # 生成唯一文件名
         unique_filename = f"{uuid.uuid4()}{file_extension}"
@@ -208,11 +267,9 @@ def save_base64_image(base64_str: str) -> Tuple[Optional[str], Optional[str]]:
         else:
             file_url = relative_path
         
-        return file_url, None
+        return file_url
         
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error saving base64 image: {e}", exc_info=True)
-        return None, f"保存图片失败：{str(e)}"
+        logger.error(f"保存图片失败：{str(e)}", exc_info=True)
+        return None
 

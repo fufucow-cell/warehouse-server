@@ -4,14 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
-from app.core.core_database import get_db
-from app.models.cabinet_model import Cabinet
-from app.schemas.warehouse_request import DeleteCabinetRequest
+from app.db.session import get_db
+from app.table.cabinet_model import Cabinet
+from app.schemas.cabinet_request import DeleteCabinetRequestModel
 from app.utils.util_response import success_response, error_response
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_request import get_request_id, get_user_id_from_header
 from app.utils.util_log import create_log
-from app.models.log_model import StateType, ItemType, LogType
+from app.table.log_model import StateType, ItemType, LogType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ router = APIRouter()
 # 路由入口
 @router.delete("/", response_class=JSONResponse)
 async def delete(
-    request_data: DeleteCabinetRequest,
+    request_data: DeleteCabinetRequestModel,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
@@ -37,7 +37,7 @@ async def delete(
             select(Cabinet).where(Cabinet.id == request_data.cabinet_id)
         )
         cabinet = result.scalar_one()
-        home_id = cabinet.home_id
+        household_id = cabinet.household_id
         
         # 刪除櫥櫃資料
         await _delete_db_cabinet(request_data, db)
@@ -45,7 +45,7 @@ async def delete(
         # 建立操作日誌
         log_result = await create_log(
             db=db,
-            home_id=home_id,
+            home_id=household_id,
             state=StateType.DELETE,
             item_type=ItemType.CABINET,
             user_name=request_data.user_name,
@@ -74,7 +74,7 @@ def _error_handle(internal_code: int) -> JSONResponse:
 # 自定義錯誤檢查
 async def _error_check(
     request: Request,
-    request_data: DeleteCabinetRequest,
+    request_data: DeleteCabinetRequestModel,
     db: AsyncSession
 ) -> Optional[JSONResponse]:
     # 檢查必要參數
@@ -99,7 +99,7 @@ async def _error_check(
 
 # 刪除櫥櫃資料
 async def _delete_db_cabinet(
-    request_data: DeleteCabinetRequest,
+    request_data: DeleteCabinetRequestModel,
     db: AsyncSession
 ) -> None:
     result = await db.execute(
