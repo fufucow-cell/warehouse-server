@@ -27,11 +27,7 @@ async def health_check(
         )
 
     except SQLAlchemyError:
-        return _error_handle(ServerErrorCode.WAREHOUSE_SERVICE_FAILED_40)
+        return error_response(ServerErrorCode.WAREHOUSE_SERVICE_FAILED_40)
     except Exception:
-        return _error_handle(ServerErrorCode.INTERNAL_SERVER_ERROR_40)
-
-# 自定義錯誤處理
-def _error_handle(internal_code: int) -> JSONResponse:
-    return error_response(internal_code=internal_code)
+        return error_response(ServerErrorCode.INTERNAL_SERVER_ERROR_40)
 

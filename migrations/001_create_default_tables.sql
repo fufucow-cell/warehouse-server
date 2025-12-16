@@ -11,23 +11,14 @@ CREATE TABLE IF NOT EXISTS category (
     household_id UUID NOT NULL,
     name VARCHAR(100) NOT NULL,
     parent_id UUID,
-    level SMALLINT NOT NULL CHECK (level IN (1, 2, 3)),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT fk_category_parent_id 
         FOREIGN KEY (parent_id) 
         REFERENCES category(id) 
-        ON DELETE CASCADE,
-    
-    CONSTRAINT chk_category_level_parent 
-        CHECK (
-            (parent_id IS NULL AND level = 1) OR 
-            (parent_id IS NOT NULL AND level IN (2, 3))
-        )
+        ON DELETE CASCADE
 );
-
-CREATE INDEX IF NOT EXISTS ix_category_household_id_level ON category(household_id, level);
 CREATE INDEX IF NOT EXISTS ix_category_parent_id ON category(parent_id);
 
 -- ============================================
@@ -51,7 +42,6 @@ CREATE TABLE IF NOT EXISTS item (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     category_id UUID,
     cabinet_id UUID,
-    room_id UUID,
     household_id UUID NOT NULL,
     name VARCHAR(100) NOT NULL,
     description VARCHAR(200),
@@ -73,7 +63,6 @@ CREATE TABLE IF NOT EXISTS item (
 );
 
 CREATE INDEX IF NOT EXISTS ix_item_household_id ON item(household_id);
-CREATE INDEX IF NOT EXISTS ix_item_room_id ON item(room_id);
 CREATE INDEX IF NOT EXISTS ix_item_cabinet_id ON item(cabinet_id);
 CREATE INDEX IF NOT EXISTS ix_item_category_id ON item(category_id);
 
@@ -88,6 +77,10 @@ CREATE TABLE IF NOT EXISTS record (
     record_type SMALLINT NOT NULL DEFAULT 0,
     item_name_old VARCHAR(100),
     item_name_new VARCHAR(100),
+    item_description_old VARCHAR(200),
+    item_description_new VARCHAR(200),
+    item_photo_old VARCHAR(500),
+    item_photo_new VARCHAR(500),
     category_name_old VARCHAR(100),
     category_name_new VARCHAR(100),
     room_name_old VARCHAR(100),

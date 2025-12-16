@@ -16,6 +16,7 @@ class UpdateCategoryRequestModel(BaseModel):
     household_id: UUID
     category_id: UUID
     name: Optional[str] = None
+    parent_id: Optional[str] = None
     user_name: str
 
 class DeleteCategoryRequestModel(BaseModel):

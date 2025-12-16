@@ -22,6 +22,6 @@ class UpdateCabinetRequestModel(BaseModel):
     user_name: str
 
 class DeleteCabinetRequestModel(BaseModel):
+    id: UUID
     household_id: UUID
-    cabinet_id: UUID
     user_name: str

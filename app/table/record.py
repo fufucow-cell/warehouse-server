@@ -16,6 +16,7 @@ class OperateType(int, enum.Enum):
 class EntityType(int, enum.Enum):
     CABINET = 0  # 橱柜
     ITEM = 1     # 物品
+    CATEGORY = 2  # 分类
 
 
 class RecordType(int, enum.Enum):
@@ -34,6 +35,10 @@ class Record(Base):
     record_type = Column(SmallInteger, nullable=False, default=RecordType.NORMAL.value, index=True)
     item_name_old = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=True)
     item_name_new = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=True)
+    item_description_old = Column(String(settings.TABLE_MAX_LENGTH_DESCRIPTION), nullable=True)
+    item_description_new = Column(String(settings.TABLE_MAX_LENGTH_DESCRIPTION), nullable=True)
+    item_photo_old = Column(String(settings.TABLE_MAX_LENGTH_LINK), nullable=True)
+    item_photo_new = Column(String(settings.TABLE_MAX_LENGTH_LINK), nullable=True)
     category_name_old = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=True)
     category_name_new = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=True)
     room_name_old = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=True)

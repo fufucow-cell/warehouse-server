@@ -47,7 +47,7 @@ def router_exception_handler(func: Callable) -> Callable:
         except Exception as e:
             if db:
                 await _rollback_if_needed(db)
-            return error_response(internal_msg=str(e), request=request)
+            return error_response(internal_code=ServerErrorCode.INTERNAL_SERVER_ERROR_40, internal_msg=str(e), request=request)
     
     return wrapper
 
@@ -58,14 +58,14 @@ async def _rollback_if_needed(db: AsyncSession) -> None:
 # HTTP 异常处理器
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:    
     if exc.status_code == 404:
-        # 请求路径不存在 → 使用 313 Request path invalid
-        internal_code = ServerErrorCode.REQUEST_PATH_INVALID_31
+        # 请求路径不存在 → 使用 403 Request path invalid
+        internal_code = ServerErrorCode.REQUEST_PATH_INVALID_40
     elif exc.status_code == 422:
-        # FastAPI 参数验证错误 → 使用 312 Request parameters invalid
-        internal_code = ServerErrorCode.REQUEST_PARAMETERS_INVALID_31
+        # FastAPI 参数验证错误 → 使用 402 Request parameters invalid
+        internal_code = ServerErrorCode.REQUEST_PARAMETERS_INVALID_40
     else:
-        # 其他 HTTP 错误 → 使用 310 Internal server error
-        internal_code = ServerErrorCode.INTERNAL_SERVER_ERROR_31
+        # 其他 HTTP 错误 → 使用 400 Internal server error
+        internal_code = ServerErrorCode.INTERNAL_SERVER_ERROR_40
     
     return error_response(
         internal_code=internal_code,
@@ -76,7 +76,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 # 请求验证异常处理器
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:    
     return error_response(
-        internal_code=ServerErrorCode.REQUEST_PARAMETERS_INVALID_31,
+        internal_code=ServerErrorCode.REQUEST_PARAMETERS_INVALID_40,
         internal_msg=str(exc),
         request=request
     )
@@ -84,7 +84,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # 全局异常处理器
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     return error_response(
-        internal_code=ServerErrorCode.INTERNAL_SERVER_ERROR_31,
+        internal_code=ServerErrorCode.INTERNAL_SERVER_ERROR_40,
         internal_msg=str(exc),
         request=request
     )

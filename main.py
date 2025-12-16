@@ -13,18 +13,12 @@ from app.utils.util_error_handle import (
     validation_exception_handler,
     global_exception_handler
 )
-from app.middleware.log_setup import DevLoggingMiddleware
-
 app = FastAPI(
     title="Warehouse Server",
-    description="Warehouse domain service (placeholder until DB is ready)",
-    version="0.1.0"
+    description="Warehouse domain service",
+    version="1.0.0",
+    redirect_slashes=True  # 启用自动重定向，支持带/不带末尾斜杠的路径
 )
-
-# 注意：所有日志（请求日志、错误日志）已在 API Gateway 统一记录，此处不再记录
-
-# 開發用 Console 日誌中間件（僅在配置為 true 時生效）
-app.add_middleware(DevLoggingMiddleware)
 
 # CORS middleware
 app.add_middleware(

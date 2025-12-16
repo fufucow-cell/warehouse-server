@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "your-secret-key-change-this-in-production"
     JWT_ALGORITHM: str = "HS256"
     
+    # 内部服务配置（用于跨服务调用）
+    HOUSEHOLD_SERVER_URL: str = "http://localhost:8002"
+    
     # CORS 配置（环境变量中使用逗号分隔，如：http://localhost:3000,http://localhost:8080）
     CORS_ORIGINS: str = "*"
     

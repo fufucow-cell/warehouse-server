@@ -41,11 +41,11 @@ def success_response(
 
 # 錯誤響應
 def error_response(
-    internal_code: int = ServerErrorCode.INTERNAL_SERVER_ERROR_31,
+    internal_code: int = ServerErrorCode.INTERNAL_SERVER_ERROR_40,
     internal_msg: Optional[str] = None,
     request: Optional[Request] = None
 ) -> JSONResponse:
-    default_code = ServerErrorCode.INTERNAL_SERVER_ERROR_31
+    default_code = ServerErrorCode.INTERNAL_SERVER_ERROR_40
     default_message = ERROR_CODE_TO_MESSAGE[default_code]
     external_message = ERROR_CODE_TO_MESSAGE.get(internal_code, default_message)
     internal_message = internal_msg or external_message

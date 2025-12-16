@@ -8,7 +8,6 @@ from app.core.core_config import settings
 
 
 class Cabinet(Base):
-    """Cabinet 模型 - 橱柜表"""
     __tablename__ = "cabinet"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -18,7 +17,6 @@ class Cabinet(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
-    # 关系
     items = relationship("Item", back_populates="cabinet")
     
     def __repr__(self):

@@ -6,7 +6,6 @@ class CategoryResponseModel(BaseModel):
     id: UUID
     name: str
     parent_id: Optional[UUID]
-    level: int
     children: Optional[List["CategoryResponseModel"]] = None
     
     class Config:

@@ -13,7 +13,6 @@ class Item(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     category_id = Column(UUID(as_uuid=True), ForeignKey("category.id", ondelete="SET NULL"), nullable=True, index=True)
     cabinet_id = Column(UUID(as_uuid=True), ForeignKey("cabinet.id", ondelete="SET NULL"), nullable=True, index=True)
-    room_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     household_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     description = Column(String(settings.TABLE_MAX_LENGTH_DESCRIPTION), nullable=True)

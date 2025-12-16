@@ -11,6 +11,9 @@ def get_request_id(request: Optional[Request] = None) -> Optional[UUID]:
 def get_user_id(request: Optional[Request] = None) -> Optional[UUID]:
     return _get_id(_USER_ID_KEY, request)
 
+def get_user_id_from_header(request: Optional[Request] = None) -> Optional[UUID]:
+    return get_user_id(request)
+
 def _get_id(key: str, request: Optional[Request] = None) -> Optional[UUID]:
     if request is None:
         return None

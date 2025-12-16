@@ -1,6 +1,5 @@
 from typing import Optional
 from uuid import UUID
-from datetime import datetime
 from pydantic import BaseModel
 
 class CreateRecordRequestModel(BaseModel):
@@ -11,6 +10,10 @@ class CreateRecordRequestModel(BaseModel):
     record_type: int = 0
     item_name_old: Optional[str] = None
     item_name_new: Optional[str] = None
+    item_description_old: Optional[str] = None
+    item_description_new: Optional[str] = None
+    item_photo_old: Optional[str] = None
+    item_photo_new: Optional[str] = None
     category_name_old: Optional[str] = None
     category_name_new: Optional[str] = None
     room_name_old: Optional[str] = None
@@ -29,5 +32,5 @@ class RecordRequestModel(BaseModel):
     operate_type: Optional[int] = None
     entity_type: Optional[int] = None
     record_type: Optional[int] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    start_date: Optional[int] = None  # epoch milliseconds
+    end_date: Optional[int] = None  # epoch milliseconds
