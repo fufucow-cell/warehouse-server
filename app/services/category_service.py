@@ -21,8 +21,8 @@ async def create_category(
     request_model: CreateCategoryRequestModel,
     db: AsyncSession
 ) -> List[CategoryResponseModel]:
-    level_name = await _get_parent_names(
-        parent_id=request_model.parent_id,
+    level_name = await get_level_names(
+        category_id=request_model.parent_id,
         db=db
     )
     level_name.append(request_model.name)
@@ -101,8 +101,8 @@ async def update_category(
         raise ValidationError(ServerErrorCode.REQUEST_PATH_INVALID_40)
 
     old_name = cast(str, category.name)
-    old_level_name = await _get_parent_names(
-        parent_id=category.parent_id,
+    old_level_name = await get_level_names(
+        category_id=category.parent_id,
         db=db
     )
     new_level_name = old_level_name.copy()
@@ -133,8 +133,8 @@ async def update_category(
             new_level_name = [new_name]
             is_parent_changed = True
     else:
-        new_level_name = await _get_parent_names(
-            parent_id=request_model.parent_id,
+        new_level_name = await get_level_names(
+            category_id=request_model.parent_id,
             db=db
         )
         category_level_num = await _get_children_max_level_num(category.id, db)
@@ -230,15 +230,15 @@ async def _create_record(
         db
     )
 
-async def _get_parent_names(
-    parent_id: Optional[UUID],
+async def get_level_names(
+    category_id: Optional[UUID],
     db: AsyncSession
 ) -> List[str]:
-    if parent_id is None:
+    if category_id is None:
         return []
     
     result = await db.execute(
-        select(Category).where(Category.id == parent_id)
+        select(Category).where(Category.id == category_id)
     )
     current = result.scalar_one_or_none()
     

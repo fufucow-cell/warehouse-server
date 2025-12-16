@@ -63,7 +63,7 @@ class CabinetUpdateInfo(BaseModel):
 
 class CategoryInfo(BaseModel):
     category_id: Optional[UUID] = None
-    category_name: Optional[str] = None
+    level_name: Optional[str] = None
 
 
 class CategoryUpdateInfo(BaseModel):

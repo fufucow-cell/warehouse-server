@@ -12,7 +12,7 @@ from app.schemas.cabinet_response import CabinetResponseModel
 from app.schemas.category_request import ReadCategoryRequestModel
 from app.schemas.record_request import CreateRecordRequestModel
 from app.services.cabinet_service import read_cabinet
-from app.services.category_service import read_category
+from app.services.category_service import read_category, get_level_names
 from app.services.record_service import create_record
 from app.table.record import OperateType, EntityType, RecordType
 from app.utils.util_error_map import ServerErrorCode
@@ -148,10 +148,10 @@ async def update_item(
     _update_item_photo(item, request_model.photo)
     
     # 處理 cabinet_id 更新
-    cabinet_info = await _update_item_cabinet(item, request_model, request_model.household_id, db)
+    cabinet_info = await _update_item_cabinet(item, request_model, db)
     
     # 處理 category_id 更新
-    category_info = await _update_item_category(item, request_model, request_model.household_id, db)
+    category_info = await _update_item_category(item, request_model, db)
     
     # name 不能為 None
     if request_model.name is not None:
@@ -366,10 +366,9 @@ async def _get_cabinet_info(
 async def _update_item_cabinet(
     item: Item,
     request_model: UpdateItemRequestModel,
-    household_id: UUID,
     db: AsyncSession
 ) -> CabinetUpdateInfo:
-    old_cabinet_info = await _get_cabinet_info(item.cabinet_id, household_id, db)
+    old_cabinet_info = await _get_cabinet_info(item.cabinet_id, item.household_id, db)
     
     # 處理 cabinet_id 更新：如果提供空字符串或 None，則移除 cabinet
     new_cabinet_id: Optional[UUID] = None
@@ -384,7 +383,7 @@ async def _update_item_cabinet(
         # 如果沒有更新，使用舊的 cabinet_id
         new_cabinet_id = cast(Optional[UUID], item.cabinet_id)
     
-    new_cabinet_info = await _get_cabinet_info(new_cabinet_id, household_id, db)
+    new_cabinet_info = await _get_cabinet_info(new_cabinet_id, item.household_id, db)
     
     return CabinetUpdateInfo(
         old=old_cabinet_info,
@@ -392,55 +391,39 @@ async def _update_item_cabinet(
     )
 
 
-# 獲取 category 資訊（category_id, category_name）
 async def _get_category_info(
     category_id: Optional[UUID],
-    household_id: UUID,
     db: AsyncSession
 ) -> CategoryInfo:
     if category_id is None:
         return CategoryInfo(
             category_id=None,
-            category_name=None
+            level_name=None
         )
     
-    categories_result = await read_category(
-        ReadCategoryRequestModel(
-            household_id=household_id,
-            category_id=category_id
-        ),
-        db
+    level_names = await get_level_names(
+        category_id=category_id,
+        db=db
     )
-    
-    category_name = None
-    if categories_result:
-        category_name = categories_result[0].name
-    
+    level_name = ";".join(level_names) if level_names else None
     return CategoryInfo(
         category_id=category_id,
-        category_name=category_name
+        level_name=level_name
     )
 
 
-# 處理 category_id 更新邏輯
-# 如果字段在 model_fields_set 中，則更新對應的值（可以是 None 或 UUID）
-# 返回 old 和 new 的 category 資訊
 async def _update_item_category(
     item: Item,
     request_model: UpdateItemRequestModel,
-    household_id: UUID,
     db: AsyncSession
 ) -> CategoryUpdateInfo:
-    # 獲取更新前的 category 資訊
-    old_category_info = await _get_category_info(item.category_id, household_id, db)
+    old_category_info = await _get_category_info(item.category_id, db)
     
     # 處理 category_id 更新：如果提供空字符串或 None，則移除 category
     if 'category_id' in request_model.model_fields_set:
         item.category_id = request_model.category_id
     
-    # 獲取更新後的 category 資訊
-    new_category_info = await _get_category_info(item.category_id, household_id, db)
-    
+    new_category_info = await _get_category_info(item.category_id, db)
     return CategoryUpdateInfo(
         old=old_category_info,
         new=new_category_info
@@ -617,8 +600,8 @@ async def _gen_update_record(
                 item_photo_new=get_new_value(request_model.photo, new_item_model.photo, photo_changed),
                 cabinet_name_old=cabinet_info.old.cabinet_name if cabinet_changed else None,
                 cabinet_name_new="" if (cabinet_changed and cabinet_info.new.cabinet_id is None) else (cabinet_info.new.cabinet_name if cabinet_changed else None),
-                category_name_old=category_info.old.category_name if category_changed else None,
-                category_name_new="" if (category_changed and category_info.new.category_id is None) else (category_info.new.category_name if category_changed else None),
+                category_name_old=category_info.old.level_name if category_changed else None,
+                category_name_new="" if (category_changed and category_info.new.category_id is None) else (category_info.new.level_name if category_changed else None),
                 quantity_count_old=old_item_model.quantity if quantity_changed else None,
                 quantity_count_new=new_item_model.quantity if quantity_changed else None,
                 min_stock_count_old=old_item_model.min_stock_alert if min_stock_alert_changed else None,
