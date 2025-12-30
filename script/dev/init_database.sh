@@ -32,25 +32,25 @@ echo -e "${YELLOW}📄 讀取 docker-compose.dev.yml 配置...${NC}"
 extract_value() {
     local key=$1
     local file=$2
-    local line=$(grep -A 10 "warehouse-postgres-dev:" "$file" | grep "${key}:" | head -1)
+    local line=$(grep -A 10 "warehouse-mysql-dev:" "$file" | grep "${key}:" | head -1)
     if [ -n "$line" ]; then
         echo "$line" | sed -E "s/.*${key}:[[:space:]]*([^[:space:]]+).*/\1/" | tr -d '"' | tr -d "'"
     fi
 }
 
-DB_USER=$(extract_value "POSTGRES_USER" "$DOCKER_COMPOSE_FILE")
-DB_PASSWORD=$(extract_value "POSTGRES_PASSWORD" "$DOCKER_COMPOSE_FILE")
-DB_NAME=$(extract_value "POSTGRES_DB" "$DOCKER_COMPOSE_FILE")
+DB_USER=$(extract_value "MYSQL_USER" "$DOCKER_COMPOSE_FILE")
+DB_PASSWORD=$(extract_value "MYSQL_PASSWORD" "$DOCKER_COMPOSE_FILE")
+DB_NAME=$(extract_value "MYSQL_DATABASE" "$DOCKER_COMPOSE_FILE")
 
 # 从 docker-compose 文件读取端口
-PORT_LINE=$(grep -A 15 "warehouse-postgres-dev:" "$DOCKER_COMPOSE_FILE" | grep -E '^\s+-\s+"[0-9]+:[0-9]+"' | head -1)
+PORT_LINE=$(grep -A 15 "warehouse-mysql-dev:" "$DOCKER_COMPOSE_FILE" | grep -E '^\s+-\s+"[0-9]+:[0-9]+"' | head -1)
 if [ -n "$PORT_LINE" ]; then
     DB_PORT=$(echo "$PORT_LINE" | sed -E 's/.*"([0-9]+):[0-9]+".*/\1/')
 fi
 
 # 默认值
 DB_HOST=${DB_HOST:-localhost}
-DB_PORT=${DB_PORT:-5434}
+DB_PORT=${DB_PORT:-3307}
 
 # 验证配置
 if [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_NAME" ]; then
@@ -74,11 +74,11 @@ echo "   Password: ${DB_PASSWORD}"
 echo ""
 
 # 檢查容器是否在運行
-CONTAINER_NAME="warehouse-postgres-dev"
+CONTAINER_NAME="warehouse-mysql-dev"
 echo -e "${YELLOW}🔍 檢查數據庫容器...${NC}"
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo -e "${RED}❌ 錯誤：PostgreSQL 容器未運行${NC}"
+    echo -e "${RED}❌ 錯誤：MySQL 容器未運行${NC}"
     echo ""
     echo -e "${YELLOW}💡 請先啟動數據庫容器：${NC}"
     # 检测 docker-compose 命令
@@ -89,7 +89,7 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     else
         DOCKER_COMPOSE_CMD="docker-compose"
     fi
-    echo "   cd $WAREHOUSE_SERVER_DIR/docker && $DOCKER_COMPOSE_CMD -f docker-compose.dev.yml up -d warehouse-postgres-dev"
+    echo "   cd $WAREHOUSE_SERVER_DIR/docker && $DOCKER_COMPOSE_CMD -f docker-compose.dev.yml up -d warehouse-mysql-dev"
     exit 1
 fi
 
@@ -124,67 +124,48 @@ USE_DOCKER_EXEC=false
 CONNECTION_SUCCESS=false
 
 # 方式1：优先使用 docker exec（推荐，更可靠）
-if docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "SELECT 1;" > /dev/null 2>&1; then
+if docker exec ${CONTAINER_NAME} mysql -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SELECT 1;" > /dev/null 2>&1; then
     USE_DOCKER_EXEC=true
     CONNECTION_SUCCESS=true
     echo -e "${GREEN}✅ 數據庫連接成功（使用容器內部連接）${NC}"
 else
-    # 方式2：尝试从外部连接（需要本地安装 psql）
-    if command -v psql &> /dev/null; then
+    # 方式2：尝试从外部连接（需要本地安装 mysql）
+    if command -v mysql &> /dev/null; then
         echo -e "${YELLOW}   容器內部連接失敗，嘗試外部連接...${NC}"
-        if PGPASSWORD=${DB_PASSWORD} psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -c "SELECT 1;" > /dev/null 2>&1; then
+        if mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SELECT 1;" > /dev/null 2>&1; then
             USE_DOCKER_EXEC=false
             CONNECTION_SUCCESS=true
             echo -e "${GREEN}✅ 數據庫連接成功（使用外部連接）${NC}"
         fi
     else
-        echo -e "${YELLOW}   psql 未安裝，無法使用外部連接${NC}"
+        echo -e "${YELLOW}   mysql 未安裝，無法使用外部連接${NC}"
     fi
 fi
 
 if [ "$CONNECTION_SUCCESS" = false ]; then
-    # 检查是否是数据库不存在的问题（尝试连接到 postgres 数据库来检查）
-    echo -e "${YELLOW}🔍 檢查數據庫是否存在...${NC}"
-    DB_EXISTS=$(docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}';" 2>/dev/null || echo "")
-    
-    if [ -z "$DB_EXISTS" ] || [ "$DB_EXISTS" != "1" ]; then
-        # 数据库不存在，尝试创建
-        echo -e "${YELLOW}📦 數據庫 ${DB_NAME} 不存在，嘗試創建...${NC}"
-        if docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d postgres -c "CREATE DATABASE ${DB_NAME};" > /dev/null 2>&1; then
-            echo -e "${GREEN}✅ 數據庫 ${DB_NAME} 創建成功${NC}"
-            # 重新尝试连接
-            if docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "SELECT 1;" > /dev/null 2>&1; then
-                USE_DOCKER_EXEC=true
-                CONNECTION_SUCCESS=true
-                echo -e "${GREEN}✅ 數據庫連接成功（使用容器內部連接）${NC}"
-            fi
-        else
-            echo -e "${RED}❌ 創建數據庫失敗${NC}"
-        fi
-    fi
-    
-    if [ "$CONNECTION_SUCCESS" = false ]; then
-        echo -e "${RED}❌ 無法連接到數據庫${NC}"
-        echo ""
-        echo -e "${YELLOW}🔍 診斷資訊：${NC}"
-        echo "   容器狀態: $(docker inspect --format='{{.State.Status}}' "${CONTAINER_NAME}" 2>/dev/null || echo '未找到')"
-        echo "   連接參數:"
-        echo "     Host: ${DB_HOST}"
-        echo "     Port: ${DB_PORT}"
-        echo "     Database: ${DB_NAME}"
-        echo "     Username: ${DB_USER}"
-        echo ""
-        echo -e "${YELLOW}💡 測試連接命令：${NC}"
-        echo "   外部連接: PGPASSWORD=${DB_PASSWORD} psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;'"
-        echo "   容器內部: docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;'"
-        echo ""
-        echo -e "${YELLOW}💡 可能的解決方案：${NC}"
-        echo "   1. 確認容器正在運行: docker ps | grep ${CONTAINER_NAME}"
-        echo "   2. 檢查容器日誌: docker logs ${CONTAINER_NAME}"
-        echo "   3. 檢查端口是否正確: lsof -i :${DB_PORT}"
-        echo "   4. 確認數據庫已初始化: docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -l"
-        exit 1
-    fi
+    # 检查是否是数据库不存在的问题（MySQL 容器启动时会自动创建数据库，这里主要是检查连接）
+    echo -e "${YELLOW}🔍 檢查數據庫連接狀態...${NC}"
+    # MySQL 容器启动时会自动创建数据库，如果连接失败可能是其他原因
+    echo -e "${RED}❌ 無法連接到數據庫${NC}"
+    echo ""
+    echo -e "${YELLOW}🔍 診斷資訊：${NC}"
+    echo "   容器狀態: $(docker inspect --format='{{.State.Status}}' "${CONTAINER_NAME}" 2>/dev/null || echo '未找到')"
+    echo "   連接參數:"
+    echo "     Host: ${DB_HOST}"
+    echo "     Port: ${DB_PORT}"
+    echo "     Database: ${DB_NAME}"
+    echo "     Username: ${DB_USER}"
+    echo ""
+    echo -e "${YELLOW}💡 測試連接命令：${NC}"
+    echo "   外部連接: mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e 'SELECT 1;'"
+    echo "   容器內部: docker exec ${CONTAINER_NAME} mysql -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e 'SELECT 1;'"
+    echo ""
+    echo -e "${YELLOW}💡 可能的解決方案：${NC}"
+    echo "   1. 確認容器正在運行: docker ps | grep ${CONTAINER_NAME}"
+    echo "   2. 檢查容器日誌: docker logs ${CONTAINER_NAME}"
+    echo "   3. 檢查端口是否正確: lsof -i :${DB_PORT}"
+    echo "   4. 等待容器完全啟動（MySQL 需要一些時間初始化）"
+    exit 1
 fi
 
 echo -e "${GREEN}✅ 數據庫連接成功${NC}"
@@ -230,10 +211,10 @@ for sql_file in "${SQL_FILES[@]}"; do
     
     # 根据连接方式选择执行命令
     if [ "$USE_DOCKER_EXEC" = true ]; then
-        docker exec -i ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} < "$sql_path"
+        docker exec -i ${CONTAINER_NAME} mysql -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} < "$sql_path"
         SQL_EXIT_CODE=$?
     else
-        PGPASSWORD=${DB_PASSWORD} psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} < "$sql_path"
+        mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} < "$sql_path"
         SQL_EXIT_CODE=$?
     fi
     
@@ -252,9 +233,9 @@ if [ $SQL_EXIT_CODE -eq 0 ]; then
     echo ""
     echo -e "${YELLOW}📋 已創建的表：${NC}"
     if [ "$USE_DOCKER_EXEC" = true ]; then
-        docker exec ${CONTAINER_NAME} psql -U ${DB_USER} -d ${DB_NAME} -c "\dt" 2>/dev/null || echo "   (表列表获取失败或表尚未创建)"
+        docker exec ${CONTAINER_NAME} mysql -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SHOW TABLES;" 2>/dev/null || echo "   (表列表获取失败或表尚未创建)"
     else
-        PGPASSWORD=${DB_PASSWORD} psql -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER} -d ${DB_NAME} -c "\dt" 2>/dev/null || echo "   (表列表获取失败或表尚未创建)"
+        mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SHOW TABLES;" 2>/dev/null || echo "   (表列表获取失败或表尚未创建)"
     fi
     echo ""
 else

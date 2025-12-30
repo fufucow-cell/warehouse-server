@@ -13,11 +13,11 @@ class Settings(BaseSettings):
     
     # 数据库配置（待資料庫提供後可透過環境變數覆寫）
     DB_HOST: str = "localhost"
-    DB_PORT: int = 5434
+    DB_PORT: int = 3307
     DB_USER: str = "cowlin"
     DB_PASSWORD: str = "abc123"
     DB_NAME: str = "smartwarehouse_warehouse_dev"
-    DB_DRIVER: str = "postgresql"
+    DB_DRIVER: str = "mysql"
     
     # JWT 配置（与 auth_server 共享）
     JWT_SECRET_KEY: str = "your-secret-key-change-this-in-production"
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     
     @property
     def database_url_async(self) -> str:
-        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
     
     @property
     def cors_origins_list(self) -> list[str]:

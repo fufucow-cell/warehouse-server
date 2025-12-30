@@ -57,16 +57,16 @@ echo ""
 
 # 检查并启动数据库
 echo -e "${YELLOW}📦 检查数据库服务...${NC}"
-CONTAINER_STATUS=$($DOCKER_COMPOSE -f docker-compose.dev.yml ps warehouse-postgres-dev 2>/dev/null | grep -E "(Up|running)" || echo "")
+CONTAINER_STATUS=$($DOCKER_COMPOSE -f docker-compose.dev.yml ps warehouse-mysql-dev 2>/dev/null | grep -E "(Up|running)" || echo "")
 
 if [ -n "$CONTAINER_STATUS" ]; then
-    echo -e "${GREEN}✅ PostgreSQL Warehouse DEV 已在运行${NC}"
+    echo -e "${GREEN}✅ MySQL Warehouse DEV 已在运行${NC}"
 else
-    echo -e "${YELLOW}📦 启动 PostgreSQL Warehouse DEV...${NC}"
+    echo -e "${YELLOW}📦 启动 MySQL Warehouse DEV...${NC}"
     
     # 启动数据库容器
-    if ! $DOCKER_COMPOSE -f docker-compose.dev.yml up -d warehouse-postgres-dev; then
-        echo -e "${RED}❌ 错误：启动 PostgreSQL Warehouse DEV 失败${NC}"
+    if ! $DOCKER_COMPOSE -f docker-compose.dev.yml up -d warehouse-mysql-dev; then
+        echo -e "${RED}❌ 错误：启动 MySQL Warehouse DEV 失败${NC}"
         exit 1
     fi
     
@@ -76,11 +76,11 @@ else
     
     # 检查容器状态
     echo -e "${YELLOW}📊 检查服务状态...${NC}"
-    $DOCKER_COMPOSE -f docker-compose.dev.yml ps warehouse-postgres-dev
+    $DOCKER_COMPOSE -f docker-compose.dev.yml ps warehouse-mysql-dev
     
     # 等待健康检查
     echo -e "${YELLOW}⏳ 等待健康检查...${NC}"
-    MAX_WAIT=30
+    MAX_WAIT=60
     WAIT_COUNT=0
     while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
         HEALTH=$($DOCKER_COMPOSE -f docker-compose.dev.yml ps --format json 2>/dev/null | grep -o '"Health":"healthy"' || echo "")
@@ -95,17 +95,17 @@ else
     echo ""
     
     # 从 docker-compose 文件读取连接信息
-    DB_USER=$(grep "POSTGRES_USER:" "$COMPOSE_FILE" | sed -E 's/.*POSTGRES_USER:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
-    DB_PASSWORD=$(grep "POSTGRES_PASSWORD:" "$COMPOSE_FILE" | sed -E 's/.*POSTGRES_PASSWORD:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
-    DB_NAME=$(grep "POSTGRES_DB:" "$COMPOSE_FILE" | sed -E 's/.*POSTGRES_DB:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
-    DB_PORT=$(grep -A 15 "warehouse-postgres-dev:" "$COMPOSE_FILE" | grep -E '^\s+-\s+"[0-9]+:[0-9]+"' | head -1 | sed -E 's/.*"([0-9]+):[0-9]+".*/\1/')
+    DB_USER=$(grep "MYSQL_USER:" "$COMPOSE_FILE" | sed -E 's/.*MYSQL_USER:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
+    DB_PASSWORD=$(grep "MYSQL_PASSWORD:" "$COMPOSE_FILE" | sed -E 's/.*MYSQL_PASSWORD:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
+    DB_NAME=$(grep "MYSQL_DATABASE:" "$COMPOSE_FILE" | sed -E 's/.*MYSQL_DATABASE:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
+    DB_PORT=$(grep -A 15 "warehouse-mysql-dev:" "$COMPOSE_FILE" | grep -E '^\s+-\s+"[0-9]+:[0-9]+"' | head -1 | sed -E 's/.*"([0-9]+):[0-9]+".*/\1/')
     
     echo ""
-    echo -e "${GREEN}✅ PostgreSQL Warehouse DEV 已启动${NC}"
+    echo -e "${GREEN}✅ MySQL Warehouse DEV 已启动${NC}"
     echo ""
     echo -e "${YELLOW}📊 数据库连接信息：${NC}"
     echo "   Host: localhost"
-    echo "   Port: ${DB_PORT:-5434}"
+    echo "   Port: ${DB_PORT:-3307}"
     echo "   Database: ${DB_NAME:-smartwarehouse_warehouse_dev}"
     echo "     Username: ${DB_USER:-cowlin}"
     echo "     Password: ${DB_PASSWORD:-abc123}"

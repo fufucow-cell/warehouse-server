@@ -64,14 +64,14 @@ echo ""
 
 # 3. 顯示服務狀態
 echo -e "${YELLOW}📊 服務狀態：${NC}"
-$DOCKER_COMPOSE -f docker-compose.dev.yml ps warehouse-postgres-dev warehouse-api-dev
+$DOCKER_COMPOSE -f docker-compose.dev.yml ps warehouse-mysql-dev warehouse-api-dev
 echo ""
 
 # 4. 顯示連線資訊
-DB_USER=$(grep "POSTGRES_USER:" "$COMPOSE_FILE" | sed -E 's/.*POSTGRES_USER:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
-DB_PASSWORD=$(grep "POSTGRES_PASSWORD:" "$COMPOSE_FILE" | sed -E 's/.*POSTGRES_PASSWORD:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
-DB_NAME=$(grep "POSTGRES_DB:" "$COMPOSE_FILE" | sed -E 's/.*POSTGRES_DB:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
-DB_PORT=$(grep -A 15 "warehouse-postgres-dev:" "$COMPOSE_FILE" | grep -E '^\s+-\s+"[0-9]+:[0-9]+"' | head -1 | sed -E 's/.*"([0-9]+):[0-9]+".*/\1/')
+DB_USER=$(grep "MYSQL_USER:" "$COMPOSE_FILE" | sed -E 's/.*MYSQL_USER:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
+DB_PASSWORD=$(grep "MYSQL_PASSWORD:" "$COMPOSE_FILE" | sed -E 's/.*MYSQL_PASSWORD:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
+DB_NAME=$(grep "MYSQL_DATABASE:" "$COMPOSE_FILE" | sed -E 's/.*MYSQL_DATABASE:[[:space:]]*([^[:space:]]+).*/\1/' | tr -d '"' | tr -d "'")
+DB_PORT=$(grep -A 15 "warehouse-mysql-dev:" "$COMPOSE_FILE" | grep -E '^\s+-\s+"[0-9]+:[0-9]+"' | head -1 | sed -E 's/.*"([0-9]+):[0-9]+".*/\1/')
 
 echo -e "${GREEN}✅ Warehouse Server DEV 環境已啟動${NC}"
 echo ""
@@ -81,7 +81,7 @@ echo "   http://localhost:8003/docs"
 echo ""
 echo -e "${YELLOW}🗄️  Database：${NC}"
 echo "   Host: localhost"
-echo "   Port: ${DB_PORT:-5434}"
+echo "   Port: ${DB_PORT:-3307}"
 echo "   Database: ${DB_NAME:-smartwarehouse_warehouse_dev}"
 echo "   Username: ${DB_USER:-cowlin}"
 echo "   Password: ${DB_PASSWORD:-abc123}"

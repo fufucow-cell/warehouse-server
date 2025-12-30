@@ -16,7 +16,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # 安装系统依赖（DEV 环境可能需要更多工具）
 RUN apt-get update && apt-get install -y \
     gcc \
-    postgresql-client \
+    default-libmysqlclient-dev \
+    pkg-config \
     curl \
     vim \
     && rm -rf /var/lib/apt/lists/*

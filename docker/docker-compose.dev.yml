@@ -1,24 +1,24 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database for Warehouse Server - DEV Environment
-  warehouse-postgres-dev:
+  # MySQL Database for Warehouse Server - DEV Environment
+  warehouse-mysql-dev:
     build:
       context: .
-      dockerfile: Dockerfile-postgres.dev
-    container_name: warehouse-postgres-dev
+      dockerfile: Dockerfile-mysql.dev
+    container_name: warehouse-mysql-dev
     environment:
-      POSTGRES_USER: cowlin
-      POSTGRES_PASSWORD: abc123
-      POSTGRES_DB: smartwarehouse_warehouse_dev
-      PGDATA: /var/lib/postgresql/data/pgdata
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_USER: cowlin
+      MYSQL_PASSWORD: abc123
+      MYSQL_DATABASE: smartwarehouse_warehouse_dev
     ports:
-      - "5434:5432"
+      - "3307:3306"
     volumes:
-      - ../database/dev:/var/lib/postgresql/data
+      - ../database/dev:/var/lib/mysql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cowlin"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "cowlin", "-pabc123"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,13 +37,13 @@ services:
       API_PORT: 8003
       API_DEBUG: "true"  # DEV 环境开启调试
       
-      # 数据库配置（连接到 warehouse-postgres-dev）
-      DB_HOST: warehouse-postgres-dev  # 使用内部服务名
-      DB_PORT: 5432
+      # 数据库配置（连接到 warehouse-mysql-dev）
+      DB_HOST: warehouse-mysql-dev  # 使用内部服务名
+      DB_PORT: 3306
       DB_USER: cowlin
       DB_PASSWORD: abc123
       DB_NAME: smartwarehouse_warehouse_dev
-      DB_DRIVER: postgresql
+      DB_DRIVER: mysql
       
       # CORS 配置（DEV 允许所有来源）
       CORS_ORIGINS: "*"
@@ -61,7 +61,7 @@ services:
       - ..:/app  # 开发模式：挂载代码目录，支持热重载（从 docker/ 到根目录，需要 1 层）
     restart: unless-stopped
     depends_on:
-      warehouse-postgres-dev:
+      warehouse-mysql-dev:
         condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload  # 开发模式：自动重载
     networks:

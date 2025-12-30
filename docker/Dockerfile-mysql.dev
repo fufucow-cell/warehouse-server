@@ -1,0 +1,22 @@
+# MySQL Dockerfile for Warehouse Server - DEV Environment
+# Based on mysql:8.0.32 (matching production version)
+
+FROM mysql:8.0.32
+
+LABEL maintainer="Smart Warehouse Team"
+LABEL description="MySQL 8.0 for Warehouse Server - DEV Environment"
+LABEL environment="dev"
+
+# 设置环境变量（匹配 docker-compose.dev.yml）
+ENV MYSQL_ROOT_PASSWORD=rootpassword
+ENV MYSQL_USER=cowlin
+ENV MYSQL_PASSWORD=abc123
+ENV MYSQL_DATABASE=smartwarehouse_warehouse_dev
+
+# 暴露端口
+EXPOSE 3306
+
+# 健康检查（匹配 docker-compose.dev.yml）
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD mysqladmin ping -h localhost -u cowlin -pabc123 || exit 1
+

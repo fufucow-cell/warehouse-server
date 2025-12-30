@@ -40,17 +40,17 @@ echo ""
 cd "$DOCKER_DIR" || exit 1
 
 # 停止数据库
-echo -e "${YELLOW}📦 停止 PostgreSQL Warehouse DEV...${NC}"
-CONTAINER_NAME="warehouse-postgres-dev"
+echo -e "${YELLOW}📦 停止 MySQL Warehouse DEV...${NC}"
+CONTAINER_NAME="warehouse-mysql-dev"
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        if $DOCKER_COMPOSE -f docker-compose.dev.yml stop warehouse-postgres-dev; then
-            echo -e "${GREEN}✅ PostgreSQL Warehouse DEV 已停止${NC}"
+        if $DOCKER_COMPOSE -f docker-compose.dev.yml stop warehouse-mysql-dev; then
+            echo -e "${GREEN}✅ MySQL Warehouse DEV 已停止${NC}"
     else
-            echo -e "${RED}❌ 错误：停止 PostgreSQL Warehouse DEV 失败${NC}"
+            echo -e "${RED}❌ 错误：停止 MySQL Warehouse DEV 失败${NC}"
         exit 1
     fi
 else
-    echo -e "${YELLOW}ℹ️  PostgreSQL Warehouse DEV 未运行${NC}"
+    echo -e "${YELLOW}ℹ️  MySQL Warehouse DEV 未运行${NC}"
 fi
 
 echo ""

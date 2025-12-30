@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, DateTime, SmallInteger
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import enum
 import uuid
@@ -27,8 +26,8 @@ class RecordType(int, enum.Enum):
 class Record(Base):
     __tablename__ = "record"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    household_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    household_id = Column(String(36), nullable=False, index=True)
     user_name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     operate_type = Column(SmallInteger, nullable=False, index=True)
     entity_type = Column(SmallInteger, nullable=False, index=True)
@@ -50,7 +49,7 @@ class Record(Base):
     min_stock_count_old = Column(Integer, nullable=True)
     min_stock_count_new = Column(Integer, nullable=True)
     description = Column(String(settings.TABLE_MAX_LENGTH_DESCRIPTION), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
     
     def __repr__(self):
         return f"<Record(id={self.id}, household_id={self.household_id}, user_name='{self.user_name}', operate_type={self.operate_type}, entity_type={self.entity_type}, record_type={self.record_type}, created_at={self.created_at})>"

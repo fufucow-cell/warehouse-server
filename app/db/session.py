@@ -15,10 +15,7 @@ engine = create_async_engine(
     pool_pre_ping=True,  # 连接前检查连接是否有效
     pool_recycle=3600,  # 1小时后回收连接
     connect_args={
-        "server_settings": {
-            "application_name": settings.APP_NAME,
-        },
-        "timeout": 10,  # 连接超时 10 秒
+        "connect_timeout": 10,  # 连接超时 10 秒
     }
 )
 

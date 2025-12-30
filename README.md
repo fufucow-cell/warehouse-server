@@ -25,11 +25,11 @@
 | Uvicorn | 0.24.0 | ASGI 伺服器 |
 | SQLAlchemy | 2.0.23 | ORM 框架（非同步支援） |
 | Pydantic | 2.5.0 | 資料驗證和設置管理 |
-| PostgreSQL | 14+ | 資料庫（透過 Docker 運行） |
+| MySQL | 8.0+ | 資料庫（透過 Docker 運行） |
 
 ### 主要依賴
 
-- **asyncpg** (0.29.0) - PostgreSQL 非同步驅動
+- **aiomysql** (0.2.0) - MySQL 非同步驅動
 - **python-jose** (3.3.0) - JWT 令牌處理
 - **passlib** (1.7.4) - 密碼雜湊
 - **httpx** (0.25.2) - HTTP 客戶端
@@ -43,14 +43,14 @@
 
 - **作業系統**: macOS, Linux, 或 Windows (WSL2)
 - **Python**: 3.9.6 或更高版本
-- **Docker**: 20.10+ (用於運行 PostgreSQL)
+- **Docker**: 20.10+ (用於運行 MySQL)
 - **Docker Compose**: 1.29+ (用於開發環境)
 
 ### 開發工具（推薦）
 
 - Git
 - VS Code 或 PyCharm
-- PostgreSQL 客戶端工具（可選，用於資料庫管理）
+- MySQL 客戶端工具（可選，用於資料庫管理）
 
 ## 🚀 快速開始
 
@@ -102,7 +102,7 @@ bash start_db.sh
 
 ```bash
 cd docker
-docker-compose -f docker-compose.dev.yml up -d warehouse-postgres-dev
+docker-compose -f docker-compose.dev.yml up -d warehouse-mysql-dev
 ```
 
 ### 6. 初始化資料庫
@@ -161,11 +161,11 @@ docker-compose -f docker-compose.dev.yml up
 ```env
 # 資料庫連接配置
 DB_HOST=localhost          # 資料庫主機位址
-DB_PORT=5434               # 資料庫埠（開發環境預設 5434）
+DB_PORT=3307               # 資料庫埠（開發環境預設 3307）
 DB_USER=cowlin             # ⚠️ 必須修改：資料庫使用者名稱
 DB_PASSWORD=abc123         # ⚠️ 必須修改：資料庫密碼（生產環境使用強密碼）
 DB_NAME=smartwarehouse_warehouse_dev  # 資料庫名稱
-DB_DRIVER=postgresql       # 資料庫驅動
+DB_DRIVER=mysql            # 資料庫驅動
 ```
 
 **⚠️ 安全提示**: 
@@ -235,11 +235,11 @@ HOUSEHOLD_SERVER_URL=http://localhost:8002  # ⚠️ 根據實際部署環境修
 | `APP_ENV` | str | `dev` | 應用環境（dev/prod） |
 | `APP_NAME` | str | `warehouse_server` | 應用名稱 |
 | `DB_HOST` | str | `localhost` | 資料庫主機 |
-| `DB_PORT` | int | `5434` | 資料庫埠 |
+| `DB_PORT` | int | `3307` | 資料庫埠 |
 | `DB_USER` | str | `cowlin` | 資料庫使用者名稱 |
 | `DB_PASSWORD` | str | `abc123` | 資料庫密碼 |
 | `DB_NAME` | str | `smartwarehouse_warehouse_dev` | 資料庫名稱 |
-| `DB_DRIVER` | str | `postgresql` | 資料庫驅動 |
+| `DB_DRIVER` | str | `mysql` | 資料庫驅動 |
 | `JWT_SECRET_KEY` | str | `your-secret-key...` | JWT 金鑰 |
 | `JWT_ALGORITHM` | str | `HS256` | JWT 演算法 |
 | `HOUSEHOLD_SERVER_URL` | str | `http://localhost:8002` | 內部服務位址 |
@@ -259,66 +259,202 @@ HOUSEHOLD_SERVER_URL=http://localhost:8002  # ⚠️ 根據實際部署環境修
 
 ## 🗄️ 資料庫設置
 
-### 使用腳本（推薦）
+### 前置條件
+
+1. 確保 MySQL 容器正在運行
+2. 確認資料庫連接資訊
+
+**檢查容器狀態：**
+```bash
+docker ps | grep warehouse-mysql-dev
+```
+
+如果容器未運行，先啟動：
+```bash
+cd docker
+docker-compose -f docker-compose.dev.yml up -d warehouse-mysql-dev
+```
+
+等待 10-30 秒讓 MySQL 完全啟動。
+
+### 資料庫連接資訊
+
+| 項目 | 值 |
+|------|-----|
+| **容器名** | `warehouse-mysql-dev` |
+| **資料庫名** | `smartwarehouse_warehouse_dev` |
+| **用户名** | `cowlin` |
+| **密碼** | `abc123` |
+| **主機（容器內）** | `localhost` 或 `warehouse-mysql-dev` |
+| **主機（外部）** | `localhost` |
+| **端口（容器內）** | `3306` |
+| **端口（外部）** | `3307` |
+
+### 初始化資料庫表
+
+#### 方法 1：使用腳本（推薦）
 
 ```bash
 # 啟動資料庫
 cd script/dev
 bash start_db.sh
 
-# 初始化資料庫表
+# 初始化資料庫表（自動執行 migrations 目錄下的所有 SQL 文件）
 bash init_database.sh
 
 # 停止資料庫（需要時）
 bash stop_db.sh
 ```
 
-### 使用 Docker Compose 直接操作
+#### 方法 2：使用 Docker exec 執行 SQL 文件
 
+1. **進入專案根目錄**
+   ```bash
+   cd /Users/cow/Desktop/work/warehouse/backend/warehouse_server
+   ```
+
+2. **執行 SQL 文件**
+   ```bash
+   docker exec -i warehouse-mysql-dev mysql -u cowlin -pabc123 smartwarehouse_warehouse_dev < migrations/001_create_default_tables.sql
+   ```
+
+3. **驗證表是否創建成功**
+   ```bash
+   # 查看所有表
+   docker exec -i warehouse-mysql-dev mysql -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "SHOW TABLES;"
+   
+   # 查看表結構
+   docker exec -i warehouse-mysql-dev mysql -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "DESCRIBE category;"
+   ```
+
+#### 方法 3：使用本地 MySQL 客戶端
+
+**前置條件：** 需要本地安裝 MySQL 客戶端
+
+**macOS:**
 ```bash
-# 啟動資料庫容器
-cd docker
-docker-compose -f docker-compose.dev.yml up -d warehouse-postgres-dev
-
-# 初始化資料庫表
-cd ../script/dev
-bash init_database.sh
-
-# 停止資料庫容器
-cd ../docker
-docker-compose -f docker-compose.dev.yml stop warehouse-postgres-dev
+brew install mysql-client
 ```
 
-### 手動設置 PostgreSQL
-
-如果使用本地 PostgreSQL：
-
-1. 建立資料庫：
-```sql
-CREATE DATABASE smartwarehouse_warehouse_dev;
-```
-
-2. 建立使用者（可選）：
-```sql
-CREATE USER cowlin WITH PASSWORD 'abc123';
-GRANT ALL PRIVILEGES ON DATABASE smartwarehouse_warehouse_dev TO cowlin;
-```
-
-3. 執行遷移腳本：
+**執行 SQL 文件：**
 ```bash
-psql -h localhost -U cowlin -d smartwarehouse_warehouse_dev -f migrations/001_create_default_tables.sql
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev < migrations/001_create_default_tables.sql
+```
+
+**驗證表是否創建成功：**
+```bash
+# 查看所有表
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "SHOW TABLES;"
+
+# 查看表結構
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "DESCRIBE category;"
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "DESCRIBE cabinet;"
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "DESCRIBE item;"
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "DESCRIBE record;"
+
+# 進入 MySQL 命令行查看（交互式）
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev
+# 然後在 MySQL 命令行中執行：
+# SHOW TABLES;
+# DESCRIBE category;
+# SELECT * FROM category LIMIT 10;
+# exit;
 ```
 
 ### 資料庫表結構
 
 主要資料表：
 
-- `category` - 分類表（支援多級分類）
+- `category` - 分類表（支援多級分類，支援自引用）
 - `cabinet` - 櫃子表
-- `item` - 物品表
-- `record` - 操作記錄表
+- `item` - 物品表（關聯分類和櫃子）
+- `record` - 操作記錄表（審計日誌）
 
 詳細表結構請查看 [migrations/001_create_default_tables.sql](./migrations/001_create_default_tables.sql)
+
+**驗證表結構：**
+
+```bash
+# 查看所有表和行數
+docker exec -i warehouse-mysql-dev mysql -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "
+SELECT 
+    TABLE_NAME as '表名',
+    TABLE_ROWS as '行數',
+    CREATE_TIME as '創建時間'
+FROM information_schema.TABLES 
+WHERE TABLE_SCHEMA = 'smartwarehouse_warehouse_dev'
+ORDER BY TABLE_NAME;
+"
+
+# 查看所有索引
+docker exec -i warehouse-mysql-dev mysql -u cowlin -pabc123 smartwarehouse_warehouse_dev -e "
+SELECT 
+    TABLE_NAME,
+    INDEX_NAME,
+    COLUMN_NAME,
+    SEQ_IN_INDEX
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = 'smartwarehouse_warehouse_dev'
+ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
+"
+```
+
+### 常見問題
+
+#### 1. 錯誤：`ERROR 2002 (HY000): Can't connect to MySQL server` 或 `Can't connect to local MySQL server through socket`
+
+**原因：** 
+- MySQL 容器未運行或未完全啟動
+- 使用 `localhost` 導致嘗試使用 Unix socket 而非 TCP 連接
+
+**解決：**
+```bash
+# 檢查容器狀態
+docker ps | grep warehouse-mysql-dev
+
+# 如果未運行，啟動容器
+cd docker
+docker-compose -f docker-compose.dev.yml up -d warehouse-mysql-dev
+
+# 等待 10-30 秒讓 MySQL 完全啟動
+
+# 如果使用本地 MySQL 客戶端連接，使用 127.0.0.1 而不是 localhost
+mysql -h 127.0.0.1 -P 3307 -u cowlin -pabc123 smartwarehouse_warehouse_dev
+```
+
+#### 2. 錯誤：`ERROR 1049 (42000): Unknown database 'smartwarehouse_warehouse_dev'`
+
+**原因：** 資料庫不存在
+
+**解決：**
+```bash
+# MySQL 容器啟動時會自動創建資料庫，但如果不存在，可以手動創建
+docker exec -i warehouse-mysql-dev mysql -u cowlin -pabc123 -e "CREATE DATABASE IF NOT EXISTS smartwarehouse_warehouse_dev;"
+```
+
+#### 3. 錯誤：`ERROR 1061 (42000): Duplicate key name 'ix_category_parent_id'`
+
+**原因：** 索引已存在（重複執行 SQL 文件）
+
+**解決：**
+- 如果是首次執行遇到此錯誤，說明表結構可能已經部分創建
+- 可以刪除表後重新執行，或手動檢查哪些索引已存在
+
+**刪除所有表（謹慎使用）：**
+```sql
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS record;
+DROP TABLE IF EXISTS item;
+DROP TABLE IF EXISTS cabinet;
+DROP TABLE IF EXISTS category;
+SET FOREIGN_KEY_CHECKS = 1;
+```
+
+#### 4. 錯誤：`ERROR 1045 (28000): Access denied`
+
+**原因：** 用戶名或密碼錯誤
+
+**解決：** 檢查 `docker/docker-compose.dev.yml` 中的配置是否正確
 
 ## 🏃 運行方式
 
@@ -430,7 +566,7 @@ warehouse_server/
 ├── docker/                   # Docker 配置
 │   ├── docker-compose.dev.yml
 │   ├── Dockerfile-api.dev
-│   └── Dockerfile-postgres.dev
+│   └── Dockerfile-mysql.dev
 ├── migrations/               # 資料庫遷移腳本
 │   └── 001_create_default_tables.sql
 ├── script/                   # 腳本檔案
