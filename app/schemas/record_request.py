@@ -7,7 +7,6 @@ class CreateRecordRequestModel(BaseModel):
     user_name: str
     operate_type: int
     entity_type: int
-    record_type: int = 0
     item_name_old: Optional[str] = None
     item_name_new: Optional[str] = None
     item_description_old: Optional[str] = None
@@ -31,6 +30,5 @@ class RecordRequestModel(BaseModel):
     household_id: UUID
     operate_type: Optional[int] = None
     entity_type: Optional[int] = None
-    record_type: Optional[int] = None
     start_date: Optional[int] = None  # epoch milliseconds
     end_date: Optional[int] = None  # epoch milliseconds

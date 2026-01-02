@@ -14,3 +14,12 @@ class ItemResponseModel(BaseModel):
     quantity: int
     min_stock_alert: int
     photo: Optional[str]
+
+class ItemInCabinetInfo(BaseModel):
+    item_id: UUID
+    name: str
+    description: Optional[str]
+    quantity: int
+    min_stock_alert: int
+    photo: Optional[str]
+    category: Optional[CategoryResponseModel]

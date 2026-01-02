@@ -7,7 +7,6 @@ class RecordResponseModel(BaseModel):
     user_name: str
     operate_type: int
     entity_type: int
-    record_type: int
     item_name_old: Optional[str] = None
     item_name_new: Optional[str] = None
     item_description_old: Optional[str] = None

@@ -18,11 +18,6 @@ class EntityType(int, enum.Enum):
     CATEGORY = 2  # 分类
 
 
-class RecordType(int, enum.Enum):
-    NORMAL = 0  # 一般
-    WARNING = 1  # 警告
-
-
 class Record(Base):
     __tablename__ = "record"
     
@@ -31,7 +26,6 @@ class Record(Base):
     user_name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     operate_type = Column(SmallInteger, nullable=False, index=True)
     entity_type = Column(SmallInteger, nullable=False, index=True)
-    record_type = Column(SmallInteger, nullable=False, default=RecordType.NORMAL.value, index=True)
     item_name_old = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=True)
     item_name_new = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=True)
     item_description_old = Column(String(settings.TABLE_MAX_LENGTH_DESCRIPTION), nullable=True)
@@ -52,4 +46,4 @@ class Record(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
     
     def __repr__(self):
-        return f"<Record(id={self.id}, household_id={self.household_id}, user_name='{self.user_name}', operate_type={self.operate_type}, entity_type={self.entity_type}, record_type={self.record_type}, created_at={self.created_at})>"
+        return f"<Record(id={self.id}, household_id={self.household_id}, user_name='{self.user_name}', operate_type={self.operate_type}, entity_type={self.entity_type}, created_at={self.created_at})>"

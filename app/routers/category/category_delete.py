@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
-from app.services.category_service import delete_category
+from app.services.category.category_delete_service import delete_category
 from app.schemas.category_request import DeleteCategoryRequestModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id
@@ -39,3 +39,7 @@ def _error_check(
     user_id = get_user_id(request)
     if not user_id:
         raise ValidationError(ServerErrorCode.UNAUTHORIZED_42)
+    
+    # 檢查 user_name 是否存在
+    if not request_model.user_name:
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)

@@ -16,7 +16,7 @@ class Cabinet(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
     
-    items = relationship("Item", back_populates="cabinet")
+    # Item 和 Cabinet 的關係已改為通過 item_cabinet_quantity 表維護多對多關係
     
     def __repr__(self):
         return f"<Cabinet(id={self.id}, name='{self.name}', room_id={self.room_id})>"

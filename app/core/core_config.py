@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "warehouse_server"  # 应用名称（用于数据库连接标识）
     
     # 数据库配置（待資料庫提供後可透過環境變數覆寫）
-    DB_HOST: str = "localhost"
+    DB_HOST: str = "127.0.0.1"
     DB_PORT: int = 3307
     DB_USER: str = "cowlin"
     DB_PASSWORD: str = "abc123"

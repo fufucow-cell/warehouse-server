@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
-from app.services.category_service import read_category
+from app.services.category.category_read_service import read_category
 from app.schemas.category_request import ReadCategoryRequestModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id

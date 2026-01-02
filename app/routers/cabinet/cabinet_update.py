@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
-from app.services.cabinet_service import update_cabinet
+from app.services.cabinet.cabinet_update_service import update_cabinet
 from app.schemas.cabinet_request import UpdateCabinetRequestModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id

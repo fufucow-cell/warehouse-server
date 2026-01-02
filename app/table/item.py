@@ -11,18 +11,15 @@ class Item(Base):
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     category_id = Column(String(36), ForeignKey("category.id", ondelete="SET NULL"), nullable=True, index=True)
-    cabinet_id = Column(String(36), ForeignKey("cabinet.id", ondelete="SET NULL"), nullable=True, index=True)
     household_id = Column(String(36), nullable=False, index=True)
     name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     description = Column(String(settings.TABLE_MAX_LENGTH_DESCRIPTION), nullable=True)
-    quantity = Column(Integer, nullable=False, default=0)
     min_stock_alert = Column(Integer, nullable=False, default=0)
     photo = Column(String(settings.TABLE_MAX_LENGTH_LINK), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
     
-    cabinet = relationship("Cabinet", back_populates="items", foreign_keys=[cabinet_id])
     category = relationship("Category", foreign_keys=[category_id])
     
     def __repr__(self):
-        return f"<Item(id={self.id}, name='{self.name}', quantity={self.quantity}, cabinet_id={self.cabinet_id})>"
+        return f"<Item(id={self.id}, name='{self.name}')>"

@@ -1,23 +1,24 @@
 from typing import Optional, List, Dict, Set, cast, Any
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
+from app.table.category import Category
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-from app.table import Item, Cabinet, Category
+from sqlalchemy import select, delete as sql_delete
+from app.table import Item, ItemCabinetQuantity
 from app.schemas.item_request import CreateItemRequestModel, ReadItemRequestModel, UpdateItemRequestModel, DeleteItemRequestModel, CabinetInfo, CabinetUpdateInfo, CategoryInfo, CategoryUpdateInfo
-from app.schemas.item_response import ItemResponseModel
+from app.schemas.item_response import ItemInCabinetInfo, ItemResponseModel
 from app.schemas.category_response import CategoryResponseModel
 from app.schemas.cabinet_request import ReadCabinetRequestModel
-from app.schemas.cabinet_response import CabinetResponseModel
 from app.schemas.category_request import ReadCategoryRequestModel
 from app.schemas.record_request import CreateRecordRequestModel
-from app.services.cabinet_service import read_cabinet
-from app.services.category_service import read_category, get_level_names
+from app.services.cabinet.cabinet_read_service import read_cabinet
+from app.services.category.category_read_service import build_category_tree, gen_single_category_tree, read_category, get_level_names
 from app.services.record_service import create_record
-from app.table.record import OperateType, EntityType, RecordType
+from app.table.record import OperateType, EntityType
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_error_handle import ValidationError
 from app.utils.util_file import delete_uploaded_file, validate_base64_image, save_base64_image
+from app.utils.util_uuid import uuid_to_str
 
 # UTC+8 timezone (China Standard Time)
 UTC_PLUS_8 = timezone(timedelta(hours=8))
@@ -46,13 +47,12 @@ async def create_item(
     # Set created_at and updated_at to UTC+8 timezone
     now_utc8 = datetime.now(UTC_PLUS_8)
     
+    # 創建 item（不再包含 cabinet_id，通過 item_cabinet_quantity 表維護）
     new_item = Item(
-        household_id=request_model.household_id,
-        cabinet_id=request_model.cabinet_id,
-        category_id=request_model.category_id,
+        household_id=uuid_to_str(request_model.household_id),
+        category_id=uuid_to_str(request_model.category_id),
         name=request_model.name,
         description=request_model.description,
-        quantity=request_model.quantity,
         min_stock_alert=request_model.min_stock_alert,
         photo=photo_url,
         created_at=now_utc8,
@@ -60,6 +60,19 @@ async def create_item(
     )
     db.add(new_item)
     await db.flush()
+    
+    # 如果有 cabinet_id 和 quantity，創建 item_cabinet_quantity 記錄
+    if request_model.cabinet_id is not None and request_model.quantity > 0:
+        item_cabinet_qty = ItemCabinetQuantity(
+            household_id=uuid_to_str(request_model.household_id),
+            item_id=new_item.id,
+            cabinet_id=uuid_to_str(request_model.cabinet_id),
+            quantity=request_model.quantity,
+            created_at=now_utc8,
+            updated_at=now_utc8,
+        )
+        db.add(item_cabinet_qty)
+        await db.flush()
     
     # 創建 record
     new_item_model = await _build_item_response(new_item, request_model.household_id, db)
@@ -73,13 +86,26 @@ async def read_item(
     request_model: ReadItemRequestModel,
     db: AsyncSession
 ) -> List[ItemResponseModel]:
-    query = select(Item).where(Item.household_id == request_model.household_id)
-
-    if request_model.cabinet_id is not None:
-        query = query.where(Item.cabinet_id == request_model.cabinet_id)
+    query = select(Item).where(Item.household_id == uuid_to_str(request_model.household_id))
     
     if request_model.category_ids is not None and len(request_model.category_ids) > 0:
         query = query.where(Item.category_id.in_(request_model.category_ids))
+    
+    # 如果指定了 cabinet_id，通過 item_cabinet_quantity 表來篩選 items
+    if request_model.cabinet_id is not None:
+        cabinet_id_str = uuid_to_str(request_model.cabinet_id)
+        # 查詢該 cabinet 下的所有 item_ids
+        item_quantities_query = select(ItemCabinetQuantity.item_id).where(
+            ItemCabinetQuantity.cabinet_id == cabinet_id_str
+        )
+        item_quantities_result = await db.execute(item_quantities_query)
+        cabinet_item_ids = {row[0] for row in item_quantities_result.all()}
+        
+        if cabinet_item_ids:
+            query = query.where(Item.id.in_(cabinet_item_ids))
+        else:
+            # 如果該 cabinet 下沒有任何 items，返回空列表
+            return []
     
     result = await db.execute(query)
     items = result.scalars().all()
@@ -87,21 +113,46 @@ async def read_item(
     if not items:
         return []
     
-    # 收集所有 cabinet_ids 並獲取 cabinets 資訊
-    cabinet_ids: Set[UUID] = {cast(UUID, item.cabinet_id) for item in items if item.cabinet_id is not None}
+    # 收集所有 cabinet_ids（從 item_cabinet_quantity 表中獲取）
+    item_ids = {item.id for item in items}
+    cabinet_quantities_query = select(ItemCabinetQuantity).where(
+        ItemCabinetQuantity.item_id.in_(item_ids)
+    )
+    cabinet_quantities_result = await db.execute(cabinet_quantities_query)
+    cabinet_quantities = cabinet_quantities_result.scalars().all()
+    
+    cabinet_ids: Set[UUID] = {cast(UUID, qty.cabinet_id) for qty in cabinet_quantities}
     cabinets_dict = await _get_cabinets_dict(request_model.household_id, cabinet_ids, db)
     
     # 收集所有 category_ids 並獲取 categories
     category_ids: Set[UUID] = {cast(UUID, item.category_id) for item in items if item.category_id is not None}
     categories_dict = await _get_categories_dict(request_model.household_id, category_ids, db)
     
+    # 收集所有 item_ids 並獲取 quantities
+    item_ids_set = {item.id for item in items}
+    quantities_dict = await _get_item_quantities_dict(item_ids_set, request_model.cabinet_id, db)
+    
+    # 構建 item 到 cabinet 的映射（從 item_cabinet_quantity 表）
+    item_to_cabinet_map: Dict[str, UUID] = {}
+    for qty in cabinet_quantities:
+        # 如果指定了 cabinet_id，只使用該 cabinet；否則使用第一個找到的 cabinet
+        if request_model.cabinet_id is not None:
+            if qty.cabinet_id == uuid_to_str(request_model.cabinet_id):
+                if qty.item_id not in item_to_cabinet_map:
+                    item_to_cabinet_map[qty.item_id] = cast(UUID, qty.cabinet_id)
+        else:
+            # 如果沒有指定 cabinet_id，使用第一個找到的 cabinet
+            if qty.item_id not in item_to_cabinet_map:
+                item_to_cabinet_map[qty.item_id] = cast(UUID, qty.cabinet_id)
+    
     response_models = []
     for item in items:
+        cabinet_id = item_to_cabinet_map.get(item.id)
         cabinet_name = None
         cabinet_room_id = None
         
-        if item.cabinet_id is not None and item.cabinet_id in cabinets_dict:
-            cabinet_info = cabinets_dict[cast(UUID, item.cabinet_id)]
+        if cabinet_id is not None and cabinet_id in cabinets_dict:
+            cabinet_info = cabinets_dict[cabinet_id]
             cabinet_name = cabinet_info["cabinet"].name
             cabinet_room_id = cabinet_info["room_id"]
         
@@ -109,15 +160,18 @@ async def read_item(
         if item.category_id is not None and item.category_id in categories_dict:
             category = categories_dict[cast(UUID, item.category_id)]
         
+        # 從 item_cabinet_quantity 表獲取 quantity
+        quantity = quantities_dict.get(item.id, 0)
+        
         response_model = ItemResponseModel(
             id=cast(UUID, item.id),
-            cabinet_id=cast(Optional[UUID], item.cabinet_id),
+            cabinet_id=cabinet_id,
             cabinet_name=cabinet_name,
             cabinet_room_id=cabinet_room_id,
             category=category,
             name=cast(str, item.name),
             description=cast(Optional[str], item.description),
-            quantity=cast(int, item.quantity),
+            quantity=quantity,
             min_stock_alert=cast(int, item.min_stock_alert),
             photo=cast(Optional[str], item.photo)
         )
@@ -133,8 +187,8 @@ async def update_item(
 ) -> ItemResponseModel:
     result = await db.execute(
         select(Item).where(
-            Item.id == request_model.id,
-            Item.household_id == request_model.household_id
+            Item.id == uuid_to_str(request_model.id),
+            Item.household_id == uuid_to_str(request_model.household_id)
         )
     )
     item = result.scalar_one_or_none()
@@ -168,10 +222,47 @@ async def update_item(
             item.description = None
         else:
             item.description = request_model.description
+    # 處理 quantity 更新：更新 item_cabinet_quantity 表
     if request_model.quantity is not None:
         if request_model.quantity < 0:
             raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
-        item.quantity = request_model.quantity
+        # 處理 quantity 更新：需要指定 cabinet_id 或使用第一個現有的
+        if 'cabinet_id' in request_model.model_fields_set and request_model.cabinet_id is not None:
+            # 使用指定的 cabinet_id
+            qty_result = await db.execute(
+                select(ItemCabinetQuantity).where(
+                    ItemCabinetQuantity.item_id == item.id,
+                    ItemCabinetQuantity.cabinet_id == uuid_to_str(request_model.cabinet_id)
+                )
+            )
+            item_qty = qty_result.scalar_one_or_none()
+            if item_qty:
+                item_qty.quantity = request_model.quantity
+                item_qty.updated_at = datetime.now(UTC_PLUS_8)
+            else:
+                # 創建新的 item_cabinet_quantity 記錄
+                now_utc8 = datetime.now(UTC_PLUS_8)
+                item_qty = ItemCabinetQuantity(
+                    household_id=item.household_id,
+                    item_id=item.id,
+                    cabinet_id=uuid_to_str(request_model.cabinet_id),
+                    quantity=request_model.quantity,
+                    created_at=now_utc8,
+                    updated_at=now_utc8,
+                )
+                db.add(item_qty)
+        else:
+            # 如果沒有指定 cabinet_id，更新第一個找到的 item_cabinet_quantity
+            qty_result = await db.execute(
+                select(ItemCabinetQuantity).where(
+                    ItemCabinetQuantity.item_id == item.id
+                ).limit(1)
+            )
+            item_qty = qty_result.scalar_one_or_none()
+            if item_qty:
+                item_qty.quantity = request_model.quantity
+                item_qty.updated_at = datetime.now(UTC_PLUS_8)
+            # 如果沒有現有的 item_cabinet_quantity，且沒有指定 cabinet_id，則無法更新 quantity
     if request_model.min_stock_alert is not None:
         if request_model.min_stock_alert < 0:
             raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
@@ -193,8 +284,8 @@ async def delete_item(
 ) -> None:
     result = await db.execute(
         select(Item).where(
-            Item.id == request_model.id,
-            Item.household_id == request_model.household_id
+            Item.id == uuid_to_str(request_model.id),
+            Item.household_id == uuid_to_str(request_model.household_id)
         )
     )
     item = result.scalar_one_or_none()
@@ -212,28 +303,27 @@ async def delete_item(
     await db.commit()
     await _gen_delete_record(old_item_model, request_model, db)
 
+# ==================== Public Method ====================
+
+# 生成 item 的 category tree
+async def gen_item_with_category_tree(
+    item: Item,
+    categories: List[Category],
+) -> ItemInCabinetInfo:
+    category = gen_single_category_tree(categories, item.category_id)
+    
+    return ItemInCabinetInfo(
+        item_id=cast(UUID, item.id),
+        name=cast(str, item.name),
+        description=cast(Optional[str], item.description),
+        quantity=0,
+        min_stock_alert=cast(int, item.min_stock_alert),
+        photo=cast(Optional[str], item.photo),
+        category=category
+    )
+
 
 # ==================== Private Method ====================
-
-def _determine_record_type(
-    quantity_count_old: Optional[int] = None,
-    quantity_count_new: Optional[int] = None,
-    min_stock_count_old: Optional[int] = None,
-    min_stock_count_new: Optional[int] = None
-) -> int:
-    quantity = quantity_count_new if quantity_count_new is not None else quantity_count_old
-    min_stock = min_stock_count_new if min_stock_count_new is not None else min_stock_count_old
-    
-    if quantity is None or min_stock is None:
-        return RecordType.NORMAL.value
-    
-    if min_stock == 0:
-        return RecordType.NORMAL.value
-    
-    if quantity < min_stock:
-        return RecordType.WARNING.value
-    
-    return RecordType.NORMAL.value
 
 async def _get_cabinets_dict(
     household_id: UUID,
@@ -315,6 +405,37 @@ def _update_item_photo(
 
 
 # 獲取 cabinet 資訊（cabinet_id, cabinet_name, room_id）
+async def _get_item_quantities_dict(
+    item_ids: Set[str],
+    cabinet_id: Optional[UUID],
+    db: AsyncSession
+) -> Dict[str, int]:
+    quantities_dict: Dict[str, int] = {}
+    
+    if not item_ids:
+        return quantities_dict
+    
+    query = select(ItemCabinetQuantity).where(
+        ItemCabinetQuantity.item_id.in_(item_ids)
+    )
+    
+    # 如果指定了 cabinet_id，只查詢該 cabinet 的 quantity
+    if cabinet_id is not None:
+        query = query.where(ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_id))
+    
+    result = await db.execute(query)
+    quantities = result.scalars().all()
+    
+    for qty in quantities:
+        item_id = qty.item_id
+        if item_id in quantities_dict:
+            quantities_dict[item_id] += qty.quantity
+        else:
+            quantities_dict[item_id] = qty.quantity
+    
+    return quantities_dict
+
+
 async def _get_cabinet_info(
     cabinet_id: Optional[UUID],
     household_id: UUID,
@@ -368,22 +489,69 @@ async def _update_item_cabinet(
     request_model: UpdateItemRequestModel,
     db: AsyncSession
 ) -> CabinetUpdateInfo:
-    old_cabinet_info = await _get_cabinet_info(item.cabinet_id, item.household_id, db)
+    # 從 item_cabinet_quantity 表獲取舊的 cabinet_id（使用第一個找到的）
+    old_cabinet_quantities_query = select(ItemCabinetQuantity).where(
+        ItemCabinetQuantity.item_id == item.id
+    ).limit(1)
+    old_cabinet_quantities_result = await db.execute(old_cabinet_quantities_query)
+    old_cabinet_quantity = old_cabinet_quantities_result.scalar_one_or_none()
+    old_cabinet_id_uuid = cast(Optional[UUID], old_cabinet_quantity.cabinet_id) if old_cabinet_quantity else None
     
-    # 處理 cabinet_id 更新：如果提供空字符串或 None，則移除 cabinet
+    old_household_id_uuid = cast(UUID, item.household_id)
+    old_cabinet_info = await _get_cabinet_info(old_cabinet_id_uuid, old_household_id_uuid, db)
+    
+    # 處理 cabinet_id 和 quantity 更新（通過 item_cabinet_quantity 表）
     new_cabinet_id: Optional[UUID] = None
-    if 'cabinet_id' in request_model.model_fields_set:
-        item.cabinet_id = request_model.cabinet_id
-        # 確保 cabinet_id 是正確的 UUID 類型
-        if request_model.cabinet_id is not None:
+    if 'cabinet_id' in request_model.model_fields_set and 'quantity' in request_model.model_fields_set:
+        # 如果同時更新 cabinet_id 和 quantity
+        if request_model.cabinet_id is not None and request_model.quantity is not None:
+            # 查找或創建 item_cabinet_quantity 記錄
+            existing_qty_query = select(ItemCabinetQuantity).where(
+                ItemCabinetQuantity.item_id == item.id,
+                ItemCabinetQuantity.cabinet_id == uuid_to_str(request_model.cabinet_id)
+            )
+            existing_qty_result = await db.execute(existing_qty_query)
+            existing_qty = existing_qty_result.scalar_one_or_none()
+            
+            if existing_qty:
+                # 更新現有記錄
+                existing_qty.quantity = request_model.quantity
+                existing_qty.updated_at = datetime.now(UTC_PLUS_8)
+            else:
+                # 創建新記錄
+                new_qty = ItemCabinetQuantity(
+                    household_id=item.household_id,
+                    item_id=item.id,
+                    cabinet_id=uuid_to_str(request_model.cabinet_id),
+                    quantity=request_model.quantity,
+                    created_at=datetime.now(UTC_PLUS_8),
+                    updated_at=datetime.now(UTC_PLUS_8),
+                )
+                db.add(new_qty)
+            
             new_cabinet_id = cast(UUID, request_model.cabinet_id)
+        elif request_model.cabinet_id is None:
+            # 如果 cabinet_id 為 None，移除所有 item_cabinet_quantity 記錄
+            delete_qty_query = sql_delete(ItemCabinetQuantity).where(
+                ItemCabinetQuantity.item_id == item.id
+            )
+            await db.execute(delete_qty_query)
+            new_cabinet_id = None
+    elif 'quantity' in request_model.model_fields_set and request_model.quantity is not None:
+        # 只更新 quantity，使用第一個現有的 cabinet
+        if old_cabinet_quantity:
+            old_cabinet_quantity.quantity = request_model.quantity
+            old_cabinet_quantity.updated_at = datetime.now(UTC_PLUS_8)
+            new_cabinet_id = cast(UUID, old_cabinet_quantity.cabinet_id)
         else:
+            # 沒有現有的 cabinet，需要 cabinet_id 才能創建
             new_cabinet_id = None
     else:
-        # 如果沒有更新，使用舊的 cabinet_id
-        new_cabinet_id = cast(Optional[UUID], item.cabinet_id)
+        # 沒有更新，使用舊的 cabinet_id
+        new_cabinet_id = old_cabinet_id_uuid
     
-    new_cabinet_info = await _get_cabinet_info(new_cabinet_id, item.household_id, db)
+    household_id_uuid = cast(UUID, item.household_id)
+    new_cabinet_info = await _get_cabinet_info(new_cabinet_id, household_id_uuid, db)
     
     return CabinetUpdateInfo(
         old=old_cabinet_info,
@@ -417,13 +585,15 @@ async def _update_item_category(
     request_model: UpdateItemRequestModel,
     db: AsyncSession
 ) -> CategoryUpdateInfo:
-    old_category_info = await _get_category_info(item.category_id, db)
+    old_category_id_uuid = cast(Optional[UUID], item.category_id) if item.category_id else None
+    old_category_info = await _get_category_info(old_category_id_uuid, db)
     
     # 處理 category_id 更新：如果提供空字符串或 None，則移除 category
     if 'category_id' in request_model.model_fields_set:
-        item.category_id = request_model.category_id
+        item.category_id = uuid_to_str(request_model.category_id)
     
-    new_category_info = await _get_category_info(item.category_id, db)
+    new_category_id_uuid = cast(Optional[UUID], item.category_id) if item.category_id else None
+    new_category_info = await _get_category_info(new_category_id_uuid, db)
     return CategoryUpdateInfo(
         old=old_category_info,
         new=new_category_info
@@ -433,17 +603,30 @@ async def _update_item_category(
 async def _build_item_response(
     item: Item,
     household_id: UUID,
-    db: AsyncSession
+    db: AsyncSession,
+    cabinet_id: Optional[UUID] = None
 ) -> ItemResponseModel:
     cabinet_name = None
     cabinet_room_id = None
     category = None
     
-    if item.cabinet_id is not None:
+    # 從 item_cabinet_quantity 表獲取 cabinet_id（使用指定的 cabinet_id 或第一個找到的）
+    cabinet_id_for_lookup = cabinet_id
+    if cabinet_id_for_lookup is None:
+        # 如果沒有指定，獲取第一個找到的 cabinet_id
+        cabinet_qty_query = select(ItemCabinetQuantity).where(
+            ItemCabinetQuantity.item_id == item.id
+        ).limit(1)
+        cabinet_qty_result = await db.execute(cabinet_qty_query)
+        cabinet_qty = cabinet_qty_result.scalar_one_or_none()
+        if cabinet_qty:
+            cabinet_id_for_lookup = cast(UUID, cabinet_qty.cabinet_id)
+    
+    if cabinet_id_for_lookup is not None:
         cabinets_result = await read_cabinet(
             ReadCabinetRequestModel(
                 household_id=household_id,
-                cabinet_ids=[cast(UUID, item.cabinet_id)]
+                cabinet_ids=[cabinet_id_for_lookup]
             ),
             db
         )
@@ -459,7 +642,7 @@ async def _build_item_response(
                     except (ValueError, AttributeError):
                         room_id = None
                 for cabinet in cabinet_list_model.cabinet:
-                    if cabinet.cabinet_id == item.cabinet_id:
+                    if cabinet.cabinet_id == cabinet_id_for_lookup:
                         cabinet_name = cabinet.name
                         cabinet_room_id = room_id
                         break
@@ -477,15 +660,21 @@ async def _build_item_response(
         if categories_result:
             category = categories_result[0]
     
+    # 從 item_cabinet_quantity 表獲取 quantity
+    quantity = 0
+    if item.id:
+        quantities_dict = await _get_item_quantities_dict({item.id}, cabinet_id_for_lookup, db)
+        quantity = quantities_dict.get(item.id, 0)
+    
     return ItemResponseModel(
         id=cast(UUID, item.id),
-        cabinet_id=cast(Optional[UUID], item.cabinet_id),
+        cabinet_id=cabinet_id_for_lookup,
         cabinet_name=cabinet_name,
         cabinet_room_id=cabinet_room_id,
         category=category,
         name=cast(str, item.name),
         description=cast(Optional[str], item.description),
-        quantity=cast(int, item.quantity),
+        quantity=quantity,
         min_stock_alert=cast(int, item.min_stock_alert),
         photo=cast(Optional[str], item.photo)
     )
@@ -496,18 +685,12 @@ async def _gen_create_record(
     request_model: CreateItemRequestModel,
     db: AsyncSession
 ) -> None:
-    record_type = _determine_record_type(
-        quantity_count_new=item_model.quantity,
-        min_stock_count_new=item_model.min_stock_alert
-    )
-    
     await create_record(
         CreateRecordRequestModel(
             household_id=request_model.household_id,
             user_name=request_model.user_name,
             operate_type=OperateType.CREATE.value,
             entity_type=EntityType.ITEM.value,
-            record_type=record_type,
             item_name_new=item_model.name,
             item_description_new=item_model.description,
             item_photo_new=item_model.photo,
@@ -566,15 +749,6 @@ async def _gen_update_record(
     has_changes = name_changed or description_changed or quantity_changed or min_stock_alert_changed or photo_changed or cabinet_changed or category_changed
     
     if has_changes:
-        record_type = RecordType.NORMAL.value
-        if quantity_changed or min_stock_alert_changed:
-            record_type = _determine_record_type(
-                quantity_count_old=old_item_model.quantity,
-                quantity_count_new=new_item_model.quantity if quantity_changed else None,
-                min_stock_count_old=old_item_model.min_stock_alert,
-                min_stock_count_new=new_item_model.min_stock_alert if min_stock_alert_changed else None
-            )
-        
         # 獲取新值：如果請求值是空字串，記錄空字串；否則使用 new_item_model 的值
         def get_new_value(request_val, new_model_val, changed):
             if not changed:
@@ -591,7 +765,6 @@ async def _gen_update_record(
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,
                 entity_type=EntityType.ITEM.value,
-                record_type=record_type,
                 item_name_old=old_item_model.name if name_changed else None,
                 item_name_new=new_item_model.name if name_changed else None,
                 item_description_old=old_item_model.description if description_changed else None,
@@ -616,18 +789,12 @@ async def _gen_delete_record(
     request_model: DeleteItemRequestModel,
     db: AsyncSession
 ) -> None:
-    record_type = _determine_record_type(
-        quantity_count_old=item_model.quantity,
-        min_stock_count_old=item_model.min_stock_alert
-    )
-    
     await create_record(
         CreateRecordRequestModel(
             household_id=request_model.household_id,
             user_name=request_model.user_name,
             operate_type=OperateType.DELETE.value,
             entity_type=EntityType.ITEM.value,
-            record_type=record_type,
             item_name_old=item_model.name,
             item_description_old=item_model.description,
             item_photo_old=item_model.photo,

@@ -44,6 +44,15 @@ upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount(f"/{settings.UPLOAD_DIR}", StaticFiles(directory=str(upload_dir)), name="uploads")
 
 @app.get("/")
-async def root(request: Request, db: AsyncSession = Depends(get_db)):
-    return await health.health_check(request, db)
+async def root(request: Request):
+    """根路径，返回简单的服务信息，不依赖数据库连接"""
+    from app.utils.util_response import success_response
+    return success_response(
+        data={
+            "status": "running",
+            "service": "warehouse-api",
+            "version": "1.0.0"
+        },
+        request=request
+    )
 

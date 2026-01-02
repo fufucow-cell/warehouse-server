@@ -29,7 +29,6 @@ async def create_record(
         user_name=request_model.user_name,
         operate_type=request_model.operate_type,
         entity_type=request_model.entity_type,
-        record_type=request_model.record_type,
         item_name_old=request_model.item_name_old,
         item_name_new=request_model.item_name_new,
         item_description_old=request_model.item_description_old,
@@ -84,7 +83,6 @@ async def read_record(
             user_name=record.user_name,
             operate_type=record.operate_type,
             entity_type=record.entity_type,
-            record_type=record.record_type,
             item_name_old=record.item_name_old,
             item_name_new=record.item_name_new,
             item_description_old=record.item_description_old,
@@ -128,8 +126,6 @@ def _apply_record_filters(query: QueryType, request_model: RecordRequestModel) -
         query = query.where(Record.operate_type == request_model.operate_type)
     if request_model.entity_type is not None:
         query = query.where(Record.entity_type == request_model.entity_type)
-    if request_model.record_type is not None:
-        query = query.where(Record.record_type == request_model.record_type)
     if request_model.start_date is not None:
         start_datetime_utc8 = datetime.fromtimestamp(request_model.start_date / 1000, tz=UTC_PLUS_8)
         start_datetime_utc = start_datetime_utc8.astimezone(timezone.utc)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 数据库初始化脚本 - DEV 环境专用
-# 从 docker-compose.dev.yml 读取配置并初始化数据库
+# 自动选择连接方式：优先使用 docker exec，如果不可用则使用本地 MySQL 客户端
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -19,14 +19,8 @@ DOCKER_COMPOSE_FILE="$DOCKER_DIR/docker-compose.dev.yml"
 echo -e "${BLUE}🔧 初始化 Warehouse Server DEV 環境的數據庫...${NC}"
 echo ""
 
-# 检查 docker-compose 文件是否存在
-if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
-    echo -e "${RED}❌ 錯誤：找不到 docker-compose 文件: $DOCKER_COMPOSE_FILE${NC}"
-    exit 1
-fi
-
 # 从 docker-compose 文件读取数据库配置
-echo -e "${YELLOW}📄 讀取 docker-compose.dev.yml 配置...${NC}"
+echo -e "${YELLOW}📄 读取 docker-compose.dev.yml 配置...${NC}"
 
 # 提取配置的函数
 extract_value() {
@@ -49,47 +43,33 @@ if [ -n "$PORT_LINE" ]; then
 fi
 
 # 默认值
-DB_HOST=${DB_HOST:-localhost}
+DB_HOST=${DB_HOST:-127.0.0.1}
 DB_PORT=${DB_PORT:-3307}
 
 # 验证配置
 if [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_NAME" ]; then
-    echo -e "${RED}❌ 錯誤：無法從 docker-compose.dev.yml 中讀取完整的數據庫配置${NC}"
-    echo "請檢查文件: $DOCKER_COMPOSE_FILE"
-    echo "已讀取的配置:"
-    echo "  DB_USER: ${DB_USER:-未找到}"
-    echo "  DB_PASSWORD: ${DB_PASSWORD:+已設置}"
-    echo "  DB_NAME: ${DB_NAME:-未找到}"
+    echo -e "${RED}❌ 错误：无法从 docker-compose.dev.yml 中读取完整的数据库配置${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✅ 成功讀取配置${NC}"
+echo -e "${GREEN}✅ 成功读取配置${NC}"
 echo ""
-echo -e "${YELLOW}📊 連接資訊：${NC}"
+echo -e "${YELLOW}📊 连接信息：${NC}"
 echo "   Host: ${DB_HOST}"
 echo "   Port: ${DB_PORT}"
 echo "   Database: ${DB_NAME}"
 echo "   Username: ${DB_USER}"
-echo "   Password: ${DB_PASSWORD}"
 echo ""
 
-# 檢查容器是否在運行
+# 检查容器是否在运行
 CONTAINER_NAME="warehouse-mysql-dev"
-echo -e "${YELLOW}🔍 檢查數據庫容器...${NC}"
+echo -e "${YELLOW}🔍 检查数据库容器...${NC}"
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo -e "${RED}❌ 錯誤：MySQL 容器未運行${NC}"
+    echo -e "${RED}❌ 错误：MySQL 容器未运行${NC}"
     echo ""
-    echo -e "${YELLOW}💡 請先啟動數據庫容器：${NC}"
-    # 检测 docker-compose 命令
-    if command -v docker-compose &> /dev/null; then
-        DOCKER_COMPOSE_CMD="docker-compose"
-    elif docker compose version &> /dev/null; then
-        DOCKER_COMPOSE_CMD="docker compose"
-    else
-        DOCKER_COMPOSE_CMD="docker-compose"
-    fi
-    echo "   cd $WAREHOUSE_SERVER_DIR/docker && $DOCKER_COMPOSE_CMD -f docker-compose.dev.yml up -d warehouse-mysql-dev"
+    echo -e "${YELLOW}💡 请先启动数据库容器：${NC}"
+    echo "   cd $WAREHOUSE_SERVER_DIR/docker && docker-compose -f docker-compose.dev.yml up -d warehouse-mysql-dev"
     exit 1
 fi
 
@@ -117,7 +97,7 @@ fi
 echo -e "${YELLOW}🔍 檢查數據庫連接...${NC}"
 
 # 尝试两种连接方式：
-# 1. 优先使用 docker exec（更可靠，不需要本地安装 psql）
+# 1. 优先使用 docker exec（更可靠，不需要本地安装 mysql）
 # 2. 如果失败，尝试从容器外部连接（通过端口映射）
 
 USE_DOCKER_EXEC=false
@@ -143,9 +123,6 @@ else
 fi
 
 if [ "$CONNECTION_SUCCESS" = false ]; then
-    # 检查是否是数据库不存在的问题（MySQL 容器启动时会自动创建数据库，这里主要是检查连接）
-    echo -e "${YELLOW}🔍 檢查數據庫連接狀態...${NC}"
-    # MySQL 容器启动时会自动创建数据库，如果连接失败可能是其他原因
     echo -e "${RED}❌ 無法連接到數據庫${NC}"
     echo ""
     echo -e "${YELLOW}🔍 診斷資訊：${NC}"
@@ -179,19 +156,19 @@ MIGRATIONS_DIR="$WAREHOUSE_SERVER_DIR/migrations"
 
 # 检查目录是否存在
 if [ ! -d "$MIGRATIONS_DIR" ]; then
-    echo -e "${RED}❌ 錯誤：找不到 migrations 目錄: $MIGRATIONS_DIR${NC}"
+    echo -e "${RED}❌ 错误：找不到 migrations 目录: $MIGRATIONS_DIR${NC}"
     exit 1
 fi
 
-# 查找所有 .sql 文件并按文件名排序（确保按顺序执行）
+# 查找所有 .sql 文件并按文件名排序
 SQL_FILES=($(find "$MIGRATIONS_DIR" -maxdepth 1 -name "*.sql" -type f -exec basename {} \; | sort))
 
 if [ ${#SQL_FILES[@]} -eq 0 ]; then
-    echo -e "${RED}❌ 錯誤：在 migrations 目錄中找不到任何 .sql 文件${NC}"
+    echo -e "${RED}❌ 错误：在 migrations 目录中找不到任何 .sql 文件${NC}"
     exit 1
 fi
 
-echo -e "${YELLOW}📋 發現 ${#SQL_FILES[@]} 個 SQL 文件，將按以下順序執行：${NC}"
+echo -e "${YELLOW}📋 发现 ${#SQL_FILES[@]} 个 SQL 文件，将按以下顺序执行：${NC}"
 for i in "${!SQL_FILES[@]}"; do
     echo -e "   $((i+1)). ${SQL_FILES[$i]}"
 done
@@ -203,7 +180,7 @@ for sql_file in "${SQL_FILES[@]}"; do
     sql_path="$MIGRATIONS_DIR/$sql_file"
     
     if [ ! -f "$sql_path" ]; then
-        echo -e "${RED}❌ 錯誤：找不到 SQL 文件: $sql_path${NC}"
+        echo -e "${RED}❌ 错误：找不到 SQL 文件: $sql_path${NC}"
         exit 1
     fi
     
