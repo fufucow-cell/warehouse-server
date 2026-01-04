@@ -8,6 +8,7 @@ from pathlib import Path
 from app.routers import health, warehouse
 from app.core.core_config import settings
 from app.db.session import get_db
+from app.middleware.trailing_slash import TrailingSlashMiddleware
 from app.utils.util_error_handle import (
     http_exception_handler,
     validation_exception_handler,
@@ -19,6 +20,9 @@ app = FastAPI(
     version="1.0.0",
     redirect_slashes=True  # 启用自动重定向，支持带/不带末尾斜杠的路径
 )
+
+# 添加尾部斜杠处理中间件（需要在 CORS 之前）
+app.add_middleware(TrailingSlashMiddleware)
 
 # CORS middleware
 app.add_middleware(
