@@ -57,7 +57,7 @@ def gen_single_category_tree(categories: List[Category], category_id: UUID) -> O
         parent_category = next((c for c in categories if c.id == parent_id_str), None)
         if parent_category:
             parent_cate_model = _convert_model(parent_category)
-            parent_cate_model.children = cate_model
+            parent_cate_model.children = [cate_model]
     
     # 再找出 parent_category 的 parent_id 的 category（如果 parent_category 存在）
     grandparent_cate_model: Optional[CategoryResponseModel] = None
@@ -66,7 +66,7 @@ def gen_single_category_tree(categories: List[Category], category_id: UUID) -> O
         grandparent_category = next((c for c in categories if c.id == grandparent_id_str), None)
         if grandparent_category:
             grandparent_cate_model = _convert_model(grandparent_category)
-            grandparent_cate_model.children = parent_cate_model
+            grandparent_cate_model.children = [parent_cate_model]
     
     if grandparent_cate_model:
         return grandparent_cate_model
@@ -197,15 +197,11 @@ def _match_children_to_parents(
                     parent_id=cast(Optional[UUID], category.parent_id),
                     children=None
                 )
-                # 如果已经有子节点，需要找到最后一个子节点并设置为它的子节点
+                # 将子节点添加到列表中
                 if model.children is None:
-                    model.children = child_model
+                    model.children = [child_model]
                 else:
-                    # 找到最后一个子节点
-                    last_child = model.children
-                    while last_child.children is not None:
-                        last_child = last_child.children
-                    last_child.children = child_model
+                    model.children.append(child_model)
                 result.append(child_model)
                 delete.append(category)
                 matched = True

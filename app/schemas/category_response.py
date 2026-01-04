@@ -8,7 +8,4 @@ class CategoryResponseModel(BaseModel):
     id: UUID
     name: str
     parent_id: Optional[UUID]
-    children: Optional[CategoryResponseModel] = None
-    
-    class Config:
-        from_attributes = True
+    children: Optional[List[CategoryResponseModel]] = None

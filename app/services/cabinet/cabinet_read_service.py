@@ -2,7 +2,7 @@ from typing import Optional, List, Dict, cast
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from app.schemas.category_request import ReadCategoryRequestModel
-from app.schemas.item_response import ItemInCabinetInfo
+from app.schemas.item_response import ItemInCabinetInfo, ItemCategoryResponseModel
 from app.services.category.category_read_service import read_category, gen_single_category_tree
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, or_
@@ -179,8 +179,9 @@ def _group_items_by_cabinet(
                         categories, 
                         cast(UUID, item.category_id) if item.category_id else None
                     )
-                    # 將 CategoryResponseModel 轉換為字典
-                    category_dict = category_model.model_dump() if category_model else None
+                    # 將 CategoryResponseModel（children 是 List）轉換為 ItemCategoryResponseModel（child 是單個對象）
+                    from app.services.item.item_read_service import _convert_category_to_item_category
+                    item_category_model = _convert_category_to_item_category(category_model) if category_model else None
                     # 創建新的 ItemInCabinetInfo 並設置 quantity
                     cabinet_item = ItemInCabinetInfo(
                         id=cast(UUID, item.id),
@@ -189,7 +190,7 @@ def _group_items_by_cabinet(
                         quantity=quantity,  # 使用該 cabinet 中的 quantity
                         min_stock_alert=cast(int, item.min_stock_alert),
                         photo=cast(Optional[str], item.photo),
-                        category=category_dict
+                        category=item_category_model
                     )
                     cabinet_items.append(cabinet_item)
                     total_quantity += quantity
@@ -230,8 +231,9 @@ def _group_items_by_cabinet(
                     categories, 
                     cast(UUID, item.category_id) if item.category_id else None
                 )
-                # 將 CategoryResponseModel 轉換為字典
-                category_dict = category_model.model_dump() if category_model else None
+                # 將 CategoryResponseModel（children 是 List）轉換為 ItemCategoryResponseModel（child 是單個對象）
+                from app.services.item.item_read_service import _convert_category_to_item_category
+                item_category_model = _convert_category_to_item_category(category_model) if category_model else None
                 unbound_item = ItemInCabinetInfo(
                     id=cast(UUID, item.id),
                     name=cast(str, item.name),
@@ -239,7 +241,7 @@ def _group_items_by_cabinet(
                     quantity=quantity,
                     min_stock_alert=cast(int, item.min_stock_alert),
                     photo=cast(Optional[str], item.photo),
-                    category=category_dict
+                    category=item_category_model
                 )
                 unbound_items.append(unbound_item)
                 unbound_total_quantity += quantity

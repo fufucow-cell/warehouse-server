@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel
@@ -15,6 +17,12 @@ class ItemResponseModel(BaseModel):
     min_stock_alert: int
     photo: Optional[str]
 
+class ItemCategoryResponseModel(BaseModel):
+    id: UUID
+    name: str
+    parent_id: Optional[UUID]
+    child: Optional[ItemCategoryResponseModel] = None
+
 class ItemInCabinetInfo(BaseModel):
     id: UUID
     name: str
@@ -22,4 +30,4 @@ class ItemInCabinetInfo(BaseModel):
     quantity: int
     min_stock_alert: int
     photo: Optional[str]
-    category: Optional[CategoryResponseModel]
+    category: Optional[ItemCategoryResponseModel] = None

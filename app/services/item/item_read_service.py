@@ -8,6 +8,7 @@ from app.table import Item, ItemCabinetQuantity, Cabinet, Category
 from app.schemas.item_request import ReadItemRequestModel
 from app.schemas.item_response import ItemResponseModel
 from app.schemas.category_response import CategoryResponseModel
+from app.schemas.item_response import ItemCategoryResponseModel
 from app.schemas.cabinet_request import ReadCabinetRequestModel
 from app.schemas.category_request import ReadCategoryRequestModel
 from app.services.cabinet.cabinet_read_service import read_cabinet
@@ -317,8 +318,8 @@ def _gen_item_with_category_tree(
             categories, 
             cast(UUID, item.category_id) if item.category_id else None
         )
-        # 將 CategoryResponseModel 轉換為字典（map）
-        category_dict = category_model.model_dump() if category_model else None
+        # 將 CategoryResponseModel（children 是 List）轉換為 ItemCategoryResponseModel（child 是單個對象）
+        item_category_model = _convert_category_to_item_category(category_model) if category_model else None
         
         result.append(
             ItemInCabinetInfo(
@@ -328,11 +329,30 @@ def _gen_item_with_category_tree(
                 quantity=0,  # 初始值，後續會更新
                 min_stock_alert=cast(int, item.min_stock_alert),
                 photo=cast(Optional[str], item.photo),
-                category=category_dict
+                category=item_category_model
             )
         )
 
     return result
+
+def _convert_category_to_item_category(
+    category: Optional[CategoryResponseModel]
+) -> Optional[ItemCategoryResponseModel]:
+    """將 CategoryResponseModel（children 是 List）轉換為 ItemCategoryResponseModel（child 是單個對象）"""
+    if category is None:
+        return None
+    
+    # 如果有 children 列表，只取第一個作為 child
+    child = None
+    if category.children and len(category.children) > 0:
+        child = _convert_category_to_item_category(category.children[0])
+    
+    return ItemCategoryResponseModel(
+        id=category.id,
+        name=category.name,
+        parent_id=category.parent_id,
+        child=child
+    )
 
 def _group_cabinets_by_room_for_items(
     cabinets: List[Cabinet],
