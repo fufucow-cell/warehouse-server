@@ -23,7 +23,7 @@ async def read(
     db: AsyncSession = Depends(get_db)
 ):
     _error_check(request, request_model)
-    response_models: List[CabinetInRoomResponseModel] = await read_cabinet_by_room(request_model, db)
+    response_models: List[CabinetInRoomResponseModel] = await read_cabinet_by_room(request_model, db, include_items=False)
     return success_response(data=response_models, request=request)
 
 def _error_check(

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
-from app.services.item_service import update_item
+from app.services.item.item_update_service import update_item
 from app.schemas.item_request import UpdateItemRequestModel
 from app.schemas.item_response import ItemResponseModel
 from app.utils.util_response import success_response

@@ -36,7 +36,12 @@ def _error_check(
     request: Request,
     request_model: CreateRecordRequestModel,
 ) -> None:
-    # 檢查 user_id 是否存在
     user_id = get_user_id(request)
     if not user_id:
         raise ValidationError(ServerErrorCode.UNAUTHORIZED_42)
+
+    if not request_model.household_id:
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+
+    if not request_model.user_name:
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)

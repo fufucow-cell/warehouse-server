@@ -15,8 +15,7 @@ class CreateItemRequestModel(BaseModel):
 
 class ReadItemRequestModel(BaseModel):
     household_id: UUID
-    cabinet_id: Optional[UUID] = None
-    category_ids: Optional[list[UUID]] = None
+    room_id: Optional[UUID] = None
 
 class UpdateItemRequestModel(BaseModel):
     id: UUID

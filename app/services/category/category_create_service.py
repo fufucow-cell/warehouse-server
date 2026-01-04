@@ -27,7 +27,7 @@ async def create_category(
         Category.household_id == uuid_to_str(request_model.household_id),
     )
     result = await db.execute(categories_query)
-    all_categories = result.scalars().all()
+    all_categories = list(result.scalars().all())
 
     level_name = await get_level_names(
         category_id=request_model.parent_id,

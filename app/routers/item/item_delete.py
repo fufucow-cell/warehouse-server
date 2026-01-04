@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
-from app.services.item_service import delete_item
+from app.services.item.item_delete_service import delete_item
 from app.schemas.item_request import DeleteItemRequestModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id

@@ -26,7 +26,9 @@ async def read_category(
         if not category:
             return []
             
-        return await _get_ancestor_categories(category, db)
+        # _get_ancestor_categories 是异步函数，返回 List[CategoryResponseModel]
+        ancestor_result = await _get_ancestor_categories(category, db)
+        return ancestor_result
     else:
         categories = list(result.scalars().all())
         # 使用 build_category_tree 遞歸建立完整的樹結構（包含所有層級的子分類）
@@ -41,6 +43,7 @@ def gen_single_category_tree(categories: List[Category], category_id: UUID) -> O
     # 先找出 category_id 的 category（使用 next() 找到第一個匹配的就立即返回，不會繼續遍歷）
     category_id_str = str(category_id)
     category = next((c for c in categories if c.id == category_id_str), None)
+    
     if not category:
         return None
     
@@ -54,7 +57,7 @@ def gen_single_category_tree(categories: List[Category], category_id: UUID) -> O
         parent_category = next((c for c in categories if c.id == parent_id_str), None)
         if parent_category:
             parent_cate_model = _convert_model(parent_category)
-            parent_cate_model.children = [cate_model]
+            parent_cate_model.children = cate_model
     
     # 再找出 parent_category 的 parent_id 的 category（如果 parent_category 存在）
     grandparent_cate_model: Optional[CategoryResponseModel] = None
@@ -63,7 +66,7 @@ def gen_single_category_tree(categories: List[Category], category_id: UUID) -> O
         grandparent_category = next((c for c in categories if c.id == grandparent_id_str), None)
         if grandparent_category:
             grandparent_cate_model = _convert_model(grandparent_category)
-            grandparent_cate_model.children = [parent_cate_model]
+            grandparent_cate_model.children = parent_cate_model
     
     if grandparent_cate_model:
         return grandparent_cate_model
@@ -86,7 +89,7 @@ def build_category_tree(categories: List[Category]) -> List[CategoryResponseMode
                 id=cast(UUID, category.id),
                 name=cast(str, category.name),
                 parent_id=cast(Optional[UUID], category.parent_id),
-                children=[]
+                children=None
             ))
             remain.remove(category)
     
@@ -142,7 +145,7 @@ async def _get_ancestor_categories(
     category: Category,
     db: AsyncSession
 ) -> List[CategoryResponseModel]:
-    ancestor_ids = {category.id}
+    ancestor_ids: set = {category.id}
     
     # 收集所有祖先
     current = category
@@ -158,13 +161,20 @@ async def _get_ancestor_categories(
         if not current:
             break
     
+    if not ancestor_ids:
+        return []
+    
+    # 将 Set 转换为列表（Category.id 是 String(36) 类型）
+    ancestor_ids_list = list(ancestor_ids)
     result = await db.execute(
-            select(Category).where(
-                Category.id.in_(ancestor_ids),
-                Category.household_id == category.household_id
-            )
+        select(Category).where(
+            Category.id.in_(ancestor_ids_list),
+            Category.household_id == category.household_id
         )
-    return build_category_tree(list(result.scalars().all()))
+    )
+    categories_list = list(result.scalars().all())
+    # build_category_tree 是同步函数，直接调用，不需要 await
+    return build_category_tree(categories_list)
 
 def _match_children_to_parents(
     parents: List[CategoryResponseModel],
@@ -185,9 +195,17 @@ def _match_children_to_parents(
                     id=cast(UUID, category.id),
                     name=cast(str, category.name),
                     parent_id=cast(Optional[UUID], category.parent_id),
-                    children=[]
+                    children=None
                 )
-                model.children.append(child_model)
+                # 如果已经有子节点，需要找到最后一个子节点并设置为它的子节点
+                if model.children is None:
+                    model.children = child_model
+                else:
+                    # 找到最后一个子节点
+                    last_child = model.children
+                    while last_child.children is not None:
+                        last_child = last_child.children
+                    last_child.children = child_model
                 result.append(child_model)
                 delete.append(category)
                 matched = True
@@ -203,5 +221,5 @@ def _convert_model(category: Category) -> CategoryResponseModel:
         id=cast(UUID, category.id),
         name=cast(str, category.name),
         parent_id=cast(Optional[UUID], category.parent_id),
-        children=[]
+        children=None
     )

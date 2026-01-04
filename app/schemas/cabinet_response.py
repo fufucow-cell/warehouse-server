@@ -7,10 +7,16 @@ class CabinetResponseModel(BaseModel):
     cabinet_id: Optional[UUID]
     room_id: Optional[UUID]
     name: str
-    item_quantity: int
-    items: List[ItemInCabinetInfo]
-
+    quantity: Optional[int] = None
+    items: Optional[List[ItemInCabinetInfo]] = None
 
 class CabinetInRoomResponseModel(BaseModel):
+    id: Optional[UUID] = None
+    name: str
+    quantity: int
+    items: List[ItemInCabinetInfo]
+
+class RoomsResponseModel(BaseModel):
     room_id: Optional[str]
-    cabinet: List[CabinetResponseModel]
+    quantity: int
+    cabinets: List[CabinetInRoomResponseModel]

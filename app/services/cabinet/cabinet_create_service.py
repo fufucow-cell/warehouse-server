@@ -30,7 +30,7 @@ async def create_cabinet(
     db.add(new_cabinet)
     await db.commit()
     
-    await _create_record(
+    await _gen_record(
         household_id=request_model.household_id,
         user_name=request_model.user_name,
         operate_type=OperateType.CREATE.value,
@@ -42,13 +42,13 @@ async def create_cabinet(
         cabinet_id=cast(UUID, new_cabinet.id),
         room_id=cast(Optional[UUID], new_cabinet.room_id),
         name=cast(str, new_cabinet.name),
-        item_quantity=0,
+        quantity=0,
         items=[]
     )
 
 # ==================== Private Method ====================
 
-async def _create_record(
+async def _gen_record(
     household_id: UUID,
     user_name: str,
     operate_type: int,

@@ -6,6 +6,7 @@ from sqlalchemy.sql import Select, Delete
 from app.table.record import Record
 from app.schemas.record_request import CreateRecordRequestModel, RecordRequestModel
 from app.schemas.record_response import RecordResponseModel
+from app.utils.util_uuid import uuid_to_str
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ async def create_record(
     created_at_utc8 = datetime.now(UTC_PLUS_8)
     
     new_record = Record(
-        household_id=request_model.household_id,
+        household_id=uuid_to_str(request_model.household_id),
         user_name=request_model.user_name,
         operate_type=request_model.operate_type,
         entity_type=request_model.entity_type,
@@ -57,11 +58,11 @@ async def read_record(
     request_model: RecordRequestModel,
     db: AsyncSession,
 ) -> List[RecordResponseModel]:
-    query = select(Record).where(Record.household_id == request_model.household_id)
+    query = select(Record).where(Record.household_id == uuid_to_str(request_model.household_id))
     query = _apply_record_filters(query, request_model)
     query = query.order_by(Record.created_at.desc())
     result = await db.execute(query)
-    records = result.scalars().all()
+    records = list(result.scalars().all())
     
     response_models = []
     for record in records:
@@ -112,7 +113,7 @@ async def delete_record(
     request_model: RecordRequestModel,
     db: AsyncSession,
 ) -> None:
-    query = delete(Record).where(Record.household_id == request_model.household_id)
+    query = delete(Record).where(Record.household_id == uuid_to_str(request_model.household_id))
     query = _apply_record_filters(query, request_model)
     result = await db.execute(query)
     await db.flush()
@@ -121,7 +122,7 @@ async def delete_record(
 
 def _apply_record_filters(query: QueryType, request_model: RecordRequestModel) -> QueryType:
     if request_model.id is not None:
-        query = query.where(Record.id == request_model.id)
+        query = query.where(Record.id == uuid_to_str(request_model.id))
     if request_model.operate_type is not None:
         query = query.where(Record.operate_type == request_model.operate_type)
     if request_model.entity_type is not None:

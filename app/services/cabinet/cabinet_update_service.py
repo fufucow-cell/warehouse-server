@@ -54,25 +54,26 @@ async def update_cabinet(
     await db.commit()
     
     if isCabinetNameChanged or isRoomChanged:
-        await _create_record(
-            household_id=cast(UUID, cabinet.household_id),
+        await _gen_record(
+            household_id=request_model.household_id,
             user_name=request_model.user_name,
             operate_type=OperateType.UPDATE.value,
             cabinet_name_old=old_cabinet_name if isCabinetNameChanged else None,
             cabinet_name_new=request_model.name if isCabinetNameChanged else None,
-            room_name_new=request_model.room_name if isRoomChanged else None,
+            room_name_new=None,  # room_name 不在 UpdateCabinetRequestModel 中，設為 None
             db=db
         )
     
     return await read_cabinet_by_room(
-        ReadCabinetByRoomRequestModel(household_id=cast(UUID, cabinet.household_id)),
-        db
+        ReadCabinetByRoomRequestModel(household_id=request_model.household_id),
+        db,
+        include_items=False
     )
 
 
 # ==================== Private Method ====================
 
-async def _create_record(
+async def _gen_record(
     household_id: UUID,
     user_name: str,
     operate_type: int,

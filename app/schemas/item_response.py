@@ -16,7 +16,7 @@ class ItemResponseModel(BaseModel):
     photo: Optional[str]
 
 class ItemInCabinetInfo(BaseModel):
-    item_id: UUID
+    id: UUID
     name: str
     description: Optional[str]
     quantity: int

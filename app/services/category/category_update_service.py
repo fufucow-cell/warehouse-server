@@ -105,7 +105,7 @@ async def update_category(
     
     category.updated_at = datetime.now(UTC_PLUS_8)
     await db.flush()
-    await _create_record(
+    await _gen_record(
             household_id=request_model.household_id,
             user_name=request_model.user_name,
             operate_type=OperateType.UPDATE.value,
@@ -201,7 +201,7 @@ async def _check_children_level_recursive(
     
     return max_child_level
 
-async def _create_record(
+async def _gen_record(
     household_id: UUID,
     user_name: str,
     operate_type: int,

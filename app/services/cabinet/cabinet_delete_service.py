@@ -31,7 +31,7 @@ async def delete_cabinet(
     
     await db.delete(cabinet)
     await db.commit()
-    await _create_record(
+    await _gen_record(
         household_id=household_id,
         user_name=request_model.user_name,
         operate_type=OperateType.DELETE.value,
@@ -42,7 +42,7 @@ async def delete_cabinet(
 
 # ==================== Private Method ====================
 
-async def _create_record(
+async def _gen_record(
     household_id: UUID,
     user_name: str,
     operate_type: int,

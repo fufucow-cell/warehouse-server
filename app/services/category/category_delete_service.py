@@ -39,7 +39,7 @@ async def delete_category(
         )
         await db.flush()
     
-    await _create_record(
+    await _gen_record(
         household_id=request_model.household_id,
         user_name=request_model.user_name,
         operate_type=OperateType.DELETE.value,
@@ -75,7 +75,7 @@ async def _get_children_ids(
     await match_children(uuid_to_str(category_id))
     return delete_ids
 
-async def _create_record(
+async def _gen_record(
     household_id: UUID,
     user_name: str,
     operate_type: int,

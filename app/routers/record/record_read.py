@@ -24,10 +24,12 @@ async def read(
     _error_check(request, request_model)
     response_models = await read_record(request_model, db)
     response = success_response(data=response_models, request=request)
+    # 使用列表推导式将 response_models 转换为字典列表
+    response_data = [model.model_dump() for model in response_models] if response_models else []
     bg_tasks.add_task(
         log_info,
         request_model.model_dump(),
-        [model.model_dump() for model in response_models],
+        response_data,
         request
     )
     return response
@@ -36,7 +38,8 @@ def _error_check(
     request: Request,
     request_model: RecordRequestModel,
 ) -> None:
-    # 檢查 user_id 是否存在
-    user_id = get_user_id(request)
-    if not user_id:
+    if not get_user_id(request):
         raise ValidationError(ServerErrorCode.UNAUTHORIZED_42)
+
+    if not request_model.household_id:
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
