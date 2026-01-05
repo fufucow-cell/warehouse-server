@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 from app.db.session import get_db
 from app.services.item.item_update_service import update_item_position
 from app.schemas.item_request import UpdateItemPositionRequestModel
-from app.schemas.item_response import ItemResponseModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id
 from app.utils.util_error_map import ServerErrorCode
@@ -22,12 +21,12 @@ async def update(
     db: AsyncSession = Depends(get_db)
 ):
     _error_check(request, request_model)
-    response_model = await update_item_position(request_model, db)
-    response = success_response(data=response_model, request=request)
+    await update_item_position(request_model, db)
+    response = success_response(data=None, request=request)
     bg_tasks.add_task(
         log_info,
         request_model.model_dump(),
-        response_model.model_dump(),
+        None,
         request
     )
     return response
@@ -51,6 +50,10 @@ def _error_check(
     
     # 檢查每個 cabinet 的 old_cabinet_id, new_cabinet_id 和 quantity
     for cabinet in request_model.cabinets:
+        # 檢查 old_cabinet_id 和 new_cabinet_id 不能相同
+        if cabinet.old_cabinet_id == cabinet.new_cabinet_id:
+            raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+        
         # 檢查 quantity 不能為空且不能小於 1
         if cabinet.quantity is None or cabinet.quantity < 1:
             raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)

@@ -201,7 +201,7 @@ async def update_item_quantity(
 async def update_item_position(
     request_model: UpdateItemPositionRequestModel,
     db: AsyncSession
-) -> ItemResponseModel:
+) -> None:
     result = await db.execute(
         select(Item).where(
             Item.id == uuid_to_str(request_model.item_id),
@@ -215,43 +215,54 @@ async def update_item_position(
     
     # 驗證每個 cabinet 請求
     for cabinet_req in request_model.cabinets:
-        # 1. 驗證 old_cabinet_id 在 cabinet table 中存在且屬於同一個 household
-        old_cabinet_result = await db.execute(
-            select(Cabinet).where(
-                Cabinet.id == uuid_to_str(cabinet_req.old_cabinet_id),
-                Cabinet.household_id == uuid_to_str(request_model.household_id)
+        # 1. 驗證 old_cabinet_id（如果不為 None，則必須在 cabinet table 中存在且屬於同一個 household）
+        if cabinet_req.old_cabinet_id is not None:
+            old_cabinet_result = await db.execute(
+                select(Cabinet).where(
+                    Cabinet.id == uuid_to_str(cabinet_req.old_cabinet_id),
+                    Cabinet.household_id == uuid_to_str(request_model.household_id)
+                )
             )
-        )
-        old_cabinet = old_cabinet_result.scalar_one_or_none()
-        if not old_cabinet:
-            raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+            old_cabinet = old_cabinet_result.scalar_one_or_none()
+            if not old_cabinet:
+                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
         
-        # 2. 驗證 new_cabinet_id 在 cabinet table 中存在且屬於同一個 household
-        new_cabinet_result = await db.execute(
-            select(Cabinet).where(
-                Cabinet.id == uuid_to_str(cabinet_req.new_cabinet_id),
-                Cabinet.household_id == uuid_to_str(request_model.household_id)
+        # 2. 驗證 new_cabinet_id（如果不為 None，則必須在 cabinet table 中存在且屬於同一個 household）
+        if cabinet_req.new_cabinet_id is not None:
+            new_cabinet_result = await db.execute(
+                select(Cabinet).where(
+                    Cabinet.id == uuid_to_str(cabinet_req.new_cabinet_id),
+                    Cabinet.household_id == uuid_to_str(request_model.household_id)
+                )
             )
-        )
-        new_cabinet = new_cabinet_result.scalar_one_or_none()
-        if not new_cabinet:
-            raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+            new_cabinet = new_cabinet_result.scalar_one_or_none()
+            if not new_cabinet:
+                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
         
-        # 3. 驗證 ItemCabinetQuantity 中 old_cabinet_id 的 quantity 存在且不小於要移動的 quantity
-        old_qty_result = await db.execute(
-            select(ItemCabinetQuantity).where(
-                ItemCabinetQuantity.item_id == item.id,
+        # 3. 驗證 ItemCabinetQuantity 中 old_cabinet_id 的 quantity 存在
+        # 如果 old_cabinet_id 為 None，則查詢 cabinet_id IS NULL 的記錄（未綁定櫃位）
+        old_qty_query = select(ItemCabinetQuantity).where(
+            ItemCabinetQuantity.item_id == item.id
+        )
+        if cabinet_req.old_cabinet_id is not None:
+            old_qty_query = old_qty_query.where(
                 ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_req.old_cabinet_id)
             )
-        )
+        else:
+            old_qty_query = old_qty_query.where(
+                ItemCabinetQuantity.cabinet_id.is_(None)
+            )
+        
+        old_qty_result = await db.execute(old_qty_query)
         old_item_qty = old_qty_result.scalar_one_or_none()
         
         if not old_item_qty:
             # 如果舊 cabinet 沒有記錄，拋出錯誤
             raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
         
-        if old_item_qty.quantity < cabinet_req.quantity:
-            # 如果舊數量小於移動數量，拋出錯誤
+        # 4. 驗證搬移的 quantity 不能大於 old cabinet 的 item quantity
+        if cabinet_req.quantity > old_item_qty.quantity:
+            # 如果請求的移動數量大於舊 cabinet 的數量，拋出錯誤
             raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
     
     old_item_model = await build_item_response(item, request_model.household_id, db)
@@ -259,12 +270,20 @@ async def update_item_position(
     now_utc8 = datetime.now(UTC_PLUS_8)
     for cabinet_req in request_model.cabinets:
         # 從舊的 cabinet 移除 quantity
-        old_qty_result = await db.execute(
-            select(ItemCabinetQuantity).where(
-                ItemCabinetQuantity.item_id == item.id,
+        # 如果 old_cabinet_id 為 None，則查詢 cabinet_id IS NULL 的記錄
+        old_qty_query = select(ItemCabinetQuantity).where(
+            ItemCabinetQuantity.item_id == item.id
+        )
+        if cabinet_req.old_cabinet_id is not None:
+            old_qty_query = old_qty_query.where(
                 ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_req.old_cabinet_id)
             )
-        )
+        else:
+            old_qty_query = old_qty_query.where(
+                ItemCabinetQuantity.cabinet_id.is_(None)
+            )
+        
+        old_qty_result = await db.execute(old_qty_query)
         old_item_qty = old_qty_result.scalar_one_or_none()
         
         # 此時已經驗證過 old_item_qty 存在且 quantity 足夠
@@ -277,12 +296,20 @@ async def update_item_position(
             old_item_qty.updated_at = now_utc8
         
         # 添加到新的 cabinet
-        new_qty_result = await db.execute(
-            select(ItemCabinetQuantity).where(
-                ItemCabinetQuantity.item_id == item.id,
+        # 如果 new_cabinet_id 為 None，則查詢 cabinet_id IS NULL 的記錄
+        new_qty_query = select(ItemCabinetQuantity).where(
+            ItemCabinetQuantity.item_id == item.id
+        )
+        if cabinet_req.new_cabinet_id is not None:
+            new_qty_query = new_qty_query.where(
                 ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_req.new_cabinet_id)
             )
-        )
+        else:
+            new_qty_query = new_qty_query.where(
+                ItemCabinetQuantity.cabinet_id.is_(None)
+            )
+        
+        new_qty_result = await db.execute(new_qty_query)
         new_item_qty = new_qty_result.scalar_one_or_none()
         
         if new_item_qty:
@@ -294,7 +321,7 @@ async def update_item_position(
             new_qty = ItemCabinetQuantity(
                 household_id=item.household_id,
                 item_id=item.id,
-                cabinet_id=uuid_to_str(cabinet_req.new_cabinet_id),
+                cabinet_id=uuid_to_str(cabinet_req.new_cabinet_id) if cabinet_req.new_cabinet_id is not None else None,
                 quantity=cabinet_req.quantity,
                 created_at=now_utc8,
                 updated_at=now_utc8,
@@ -309,7 +336,6 @@ async def update_item_position(
     
     # 生成記錄（position 變化）
     await _gen_record_position(old_item_model, new_item_model, request_model, db)
-    return new_item_model
 
 
 

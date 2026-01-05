@@ -1,7 +1,7 @@
 from typing import List
 from typing import Optional
 from uuid import UUID
-from app.schemas.cabinet_response import CabinetInRoomResponseModel
+from app.schemas.cabinet_response import CabinetInRoomResponseModel, RoomsResponseModel
 from app.services.cabinet.cabinet_read_service import read_cabinet_by_room
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ async def read(
     db: AsyncSession = Depends(get_db)
 ):
     _error_check(request, request_model)
-    response_models: List[CabinetInRoomResponseModel] = await read_cabinet_by_room(request_model, db, include_items=False)
+    response_models: List[RoomsResponseModel] = await read_cabinet_by_room(request_model, db, include_items=False)
     return success_response(data=response_models, request=request)
 
 def _error_check(

@@ -38,8 +38,8 @@ class UpdateItemQuantityRequestModel(BaseModel):
     user_name: str
 
 class UpdateItemPositionCabinet(BaseModel):
-    old_cabinet_id: UUID
-    new_cabinet_id: UUID
+    old_cabinet_id: Optional[UUID] = None
+    new_cabinet_id: Optional[UUID] = None
     quantity: int
 
 class UpdateItemPositionRequestModel(BaseModel):

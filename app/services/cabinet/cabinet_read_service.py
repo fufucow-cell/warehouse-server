@@ -11,7 +11,7 @@ from app.table.item import Item
 from app.table.item_cabinet_quantity import ItemCabinetQuantity
 from app.table.category import Category
 from app.schemas.cabinet_request import ReadCabinetByRoomRequestModel, ReadCabinetRequestModel
-from app.schemas.cabinet_response import CabinetResponseModel, CabinetInRoomResponseModel
+from app.schemas.cabinet_response import CabinetResponseModel, CabinetInRoomResponseModel, RoomsResponseModel
 from app.schemas.category_response import CategoryResponseModel
 from app.schemas.record_request import CreateRecordRequestModel
 from app.table.record import OperateType, EntityType
@@ -29,7 +29,7 @@ async def read_cabinet_by_room(
     request_model: ReadCabinetByRoomRequestModel,
     db: AsyncSession,
     include_items: bool = True
-) -> List[CabinetInRoomResponseModel]:
+) -> List[RoomsResponseModel]:
     # 取出 cabinets
     household_id_str = uuid_to_str(request_model.household_id)
     cabinets_query = select(Cabinet).where(Cabinet.household_id == household_id_str)
@@ -45,28 +45,26 @@ async def read_cabinet_by_room(
     if not all_cabinets:
         return []
     
-    result_rooms = _group_cabinets_by_room(all_cabinets)
+    # 取出 quantity（無論是否包含 items，都需要計算 cabinet 的 quantity）
+    all_cabinet_ids = [cabinet.id for cabinet in all_cabinets]
+    # 包含所有 cabinets 的 quantities 和所有 cabinet_id 為 NULL 的 quantities
+    from sqlalchemy import or_
+    quantities_query = select(ItemCabinetQuantity).where(
+        ItemCabinetQuantity.household_id == household_id_str
+    ).where(
+        or_(
+            ItemCabinetQuantity.cabinet_id.in_(all_cabinet_ids),
+            ItemCabinetQuantity.cabinet_id.is_(None)
+        )
+    )
+
+    quantities_result = await db.execute(quantities_query)
+    all_quantities = list(quantities_result.scalars().all())
+    
+    result_rooms = _group_cabinets_by_room(all_cabinets, all_quantities)
     
     # 如果需要包含 items，才執行 items 相關的查詢
     if include_items:
-        all_cabinet_ids = [cabinet.id for cabinet in all_cabinets]
-        
-        # 取出 quantity
-        quantities_query = select(ItemCabinetQuantity).where(
-            ItemCabinetQuantity.household_id == household_id_str)
-        
-        if request_model.room_id is not None:
-            # 包含指定 room 下的 cabinets 的 quantities 和所有 cabinet_id 為 NULL 的 quantities
-            from sqlalchemy import or_
-            quantities_query = quantities_query.where(
-                or_(
-                    ItemCabinetQuantity.cabinet_id.in_(all_cabinet_ids),
-                    ItemCabinetQuantity.cabinet_id.is_(None)
-                )
-            )
-
-        quantities_result = await db.execute(quantities_query)
-        all_quantities = list(quantities_result.scalars().all())
         all_item_ids = list(set([qty.item_id for qty in all_quantities]))
 
         # 取出 items
@@ -99,44 +97,66 @@ async def read_cabinet(
 
 def _group_cabinets_by_room(
     cabinets: List[Cabinet],
-) -> List[CabinetInRoomResponseModel]:
-    result_dict: Dict[str, List[CabinetResponseModel]] = {}
+    quantities: List[ItemCabinetQuantity],
+) -> List[RoomsResponseModel]:
+    # 構建 cabinet_id 到總 quantity 的映射
+    cabinet_quantities_dict: Dict[str, int] = {}
+    for qty in quantities:
+        # 如果 cabinet_id 為 None，轉換成 "empty"
+        cabinet_id = qty.cabinet_id if qty.cabinet_id is not None else "empty"
+        if cabinet_id not in cabinet_quantities_dict:
+            cabinet_quantities_dict[cabinet_id] = 0
+        cabinet_quantities_dict[cabinet_id] += qty.quantity
+    
+    # 按照 room_id 分組
+    result_dict: Dict[str, List[CabinetInRoomResponseModel]] = {}
     
     for cabinet in cabinets:
-        cabinet_model = CabinetResponseModel(
-            cabinet_id=cast(UUID, cabinet.id),
-            room_id=cast(Optional[UUID], cabinet.room_id),
-            name=cast(str, cabinet.name)
-        )
-
+        # 確定 room_id（None 時使用 "empty"）
         if cabinet.room_id is None:
             room_id = "empty"
         else:
             room_id = cast(str, cabinet.room_id)
-
+        
+        # 初始化 room 的列表（如果不存在）
         if room_id not in result_dict:
             result_dict[room_id] = []
-
+        
+        # 從 quantity table 中獲取該 cabinet 的總 quantity
+        cabinet_id_str = uuid_to_str(cabinet.id)
+        cabinet_total_quantity = cabinet_quantities_dict.get(cabinet_id_str, 0)
+        
+        # 創建 CabinetInRoomResponseModel
+        cabinet_model = CabinetInRoomResponseModel(
+            id=cast(UUID, cabinet.id),
+            name=cast(str, cabinet.name),
+            quantity=cabinet_total_quantity,  # 從 quantity table 加總
+            items=[]  # 初始值，後續會更新
+        )
+        
         result_dict[room_id].append(cabinet_model)
     
-    result: List[CabinetInRoomResponseModel] = []
-    for room_id, cabinet_list in result_dict.items():
-        # 將 CabinetResponseModel 轉換為 CabinetInRoomResponseModel
-        for cabinet_model in cabinet_list:
-            if cabinet_model.cabinet_id is not None:
-                result.append(
-                    CabinetInRoomResponseModel(
-                        id=cabinet_model.cabinet_id,
-                        name=cabinet_model.name,
-                        quantity=0,  # 初始值，後續會更新
-                        items=[]  # 初始值，後續會更新
-                    )
-                )
-
+    # 轉換為 RoomsResponseModel 列表
+    result: List[RoomsResponseModel] = []
+    for room_id_str, cabinet_list in result_dict.items():
+        # 計算該 room 的總 quantity
+        total_quantity = sum(cab.quantity for cab in cabinet_list)
+        
+        # room_id 為 "empty" 時轉換為 None，否則保持原值
+        room_id_final = None if room_id_str == "empty" else room_id_str
+        
+        result.append(
+            RoomsResponseModel(
+                room_id=room_id_final,
+                quantity=total_quantity,
+                cabinets=cabinet_list
+            )
+        )
+    
     return result
 
 def _group_items_by_cabinet(
-    rooms: List[CabinetInRoomResponseModel],
+    rooms: List[RoomsResponseModel],
     items: List[Item],
     categories: List[Category],
     quantities: List[ItemCabinetQuantity],
@@ -155,14 +175,16 @@ def _group_items_by_cabinet(
             quantities_by_cabinet[cabinet_id] = {}
         quantities_by_cabinet[cabinet_id][qty.item_id] = qty.quantity
     
-    # 遍歷每個 cabinet，組裝 items
-    # rooms 是 List[CabinetInRoomResponseModel]，每個元素本身就是一個 cabinet
-    for cabinet in rooms:
-        # 檢查是否為虛擬櫥櫃（id 為 None）
-        if cabinet.id is None:
-            cabinet_id = "empty"
-        else:
-            cabinet_id = str(cabinet.id)
+    # 遍歷每個 room，然後遍歷每個 room 下的 cabinet，組裝 items
+    for room in rooms:
+        room_total_quantity = 0
+        
+        for cabinet in room.cabinets:
+            # 檢查是否為虛擬櫥櫃（id 為 None）
+            if cabinet.id is None:
+                cabinet_id = "empty"
+            else:
+                cabinet_id = str(cabinet.id)
             
             # 獲取該 cabinet 的 quantities
             cabinet_quantities = quantities_by_cabinet.get(cabinet_id, {})
@@ -198,13 +220,39 @@ def _group_items_by_cabinet(
             # 更新 cabinet 的 items 和 quantity
             cabinet.items = cabinet_items
             cabinet.quantity = total_quantity
+            room_total_quantity += total_quantity
+        
+        # 更新 room 的總 quantity
+        room.quantity = room_total_quantity
     
-    #（cabinet_id 為 NULL 的 items）
+    # 處理未綁定櫥櫃（cabinet_id 為 NULL 的 items）
     unbound_items_quantities = quantities_by_cabinet.get("empty", {})
     if unbound_items_quantities:
-        # 查找是否已經存在 cabinet（id 為 None）
+        # 查找是否已經存在 room（room_id 為 None 或 "empty"）
+        unbound_room = None
+        for room in rooms:
+            if room.room_id is None or room.room_id == "empty":
+                unbound_room = room
+                break
+        
+        if unbound_room is None:
+            # 創建新的 room（用於存放未綁定櫥櫃的物品）
+            unbound_cabinet = CabinetInRoomResponseModel(
+                id=None,  # 虛擬櫥櫃 ID 為 None
+                name=None,  # 虛擬櫥櫃名稱
+                quantity=0,
+                items=[]
+            )
+            unbound_room = RoomsResponseModel(
+                room_id=None,
+                quantity=0,
+                cabinets=[unbound_cabinet]
+            )
+            rooms.append(unbound_room)
+        
+        # 查找未綁定櫥櫃的 cabinet（id 為 None）
         unbound_cabinet = None
-        for cabinet in rooms:
+        for cabinet in unbound_room.cabinets:
             if cabinet.id is None:
                 unbound_cabinet = cabinet
                 break
@@ -217,7 +265,7 @@ def _group_items_by_cabinet(
                 quantity=0,
                 items=[]
             )
-            rooms.append(unbound_cabinet)
+            unbound_room.cabinets.append(unbound_cabinet)
         
         # 組裝 cabinet_id 為 NULL 的 items
         unbound_items: List[ItemInCabinetInfo] = []
@@ -249,3 +297,6 @@ def _group_items_by_cabinet(
         # 更新 cabinet_id 為 NULL 的 items 和 quantity
         unbound_cabinet.items = unbound_items
         unbound_cabinet.quantity = unbound_total_quantity
+        
+        # 更新未綁定 room 的總 quantity
+        unbound_room.quantity = sum(cab.quantity for cab in unbound_room.cabinets)
