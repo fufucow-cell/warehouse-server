@@ -51,6 +51,7 @@ async def _gen_record(
     await create_record(
         CreateRecordRequestModel(
             household_id=request_model.household_id,
+            item_id=item_model.id,
             user_name=request_model.user_name,
             operate_type=OperateType.DELETE.value,
             entity_type=EntityType.ITEM.value,

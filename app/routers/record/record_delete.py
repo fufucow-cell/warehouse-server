@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
 from app.services.record_service import delete_record
-from app.schemas.record_request import RecordRequestModel
+from app.schemas.record_request import ReadRecordRequestModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id
 from app.utils.util_error_map import ServerErrorCode
@@ -16,7 +16,7 @@ router = APIRouter()
 @router_exception_handler
 async def delete(
     request: Request,
-    request_model: RecordRequestModel,
+    request_model: ReadRecordRequestModel,
     bg_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
@@ -33,7 +33,7 @@ async def delete(
 
 def _error_check(
     request: Request,
-    request_model: RecordRequestModel,
+    request_model: ReadRecordRequestModel,
 ) -> None:
     # 檢查 user_id 是否存在
     user_id = get_user_id(request)

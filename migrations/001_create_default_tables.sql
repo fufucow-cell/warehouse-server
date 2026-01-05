@@ -88,6 +88,7 @@ CREATE INDEX ix_item_cabinet_quantity_cabinet_id ON item_cabinet_quantity(cabine
 
 CREATE TABLE IF NOT EXISTS record (
     id CHAR(36) PRIMARY KEY,
+    item_id CHAR(36) NULL,
     household_id CHAR(36) NOT NULL,
     user_name VARCHAR(100) NOT NULL,
     operate_type SMALLINT NOT NULL,

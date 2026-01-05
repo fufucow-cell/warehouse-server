@@ -85,13 +85,25 @@ async def read_cabinet(
     request_model: ReadCabinetRequestModel,
     db: AsyncSession
 ) -> List[CabinetInRoomResponseModel]:
-    return await read_cabinet_by_room(
+    rooms_result = await read_cabinet_by_room(
         ReadCabinetByRoomRequestModel(
             household_id=request_model.household_id,
             room_id=None  # 獲取所有 rooms 的 cabinets
         ),
-        db
+        db,
+        include_items=False  # 不需要 items，只返回 cabinet 信息
     )
+    # 扁平化 RoomsResponseModel 列表为 CabinetInRoomResponseModel 列表
+    result: List[CabinetInRoomResponseModel] = []
+    for room in rooms_result:
+        for cabinet in room.cabinets:
+            # 如果指定了 cabinet_ids，进行过滤
+            if request_model.cabinet_ids is not None:
+                if cabinet.id is not None and cabinet.id in request_model.cabinet_ids:
+                    result.append(cabinet)
+            else:
+                result.append(cabinet)
+    return result
 
 # ==================== Private Method ====================
 

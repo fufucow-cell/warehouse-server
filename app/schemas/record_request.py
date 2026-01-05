@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 class CreateRecordRequestModel(BaseModel):
     household_id: UUID
+    item_id: Optional[UUID] = None
     user_name: str
     operate_type: int
     entity_type: int
@@ -25,8 +26,9 @@ class CreateRecordRequestModel(BaseModel):
     min_stock_count_new: Optional[int] = None
     description: Optional[str] = None
 
-class RecordRequestModel(BaseModel):
+class ReadRecordRequestModel(BaseModel):
     id: Optional[UUID] = None
+    item_id: Optional[UUID] = None
     household_id: UUID
     operate_type: Optional[int] = None
     entity_type: Optional[int] = None

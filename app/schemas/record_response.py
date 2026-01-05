@@ -1,30 +1,20 @@
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from pydantic import BaseModel
 
 class RecordResponseModel(BaseModel):
     id: UUID
-    user_name: str
-    operate_type: int
-    entity_type: int
-    item_name_old: Optional[str] = None
-    item_name_new: Optional[str] = None
-    item_description_old: Optional[str] = None
-    item_description_new: Optional[str] = None
-    item_photo_old: Optional[str] = None
-    item_photo_new: Optional[str] = None
-    category_name_old: Optional[str] = None
-    category_name_new: Optional[str] = None
-    room_name_old: Optional[str] = None
-    room_name_new: Optional[str] = None
-    cabinet_name_old: Optional[str] = None
-    cabinet_name_new: Optional[str] = None
-    quantity_count_old: Optional[int] = None
-    quantity_count_new: Optional[int] = None
-    min_stock_count_old: Optional[int] = None
-    min_stock_count_new: Optional[int] = None
-    description: Optional[str] = None
-    created_at: int  # epoch milliseconds
-    
-    class Config:
-        from_attributes = True
+    household_id: UUID
+    item_id: Optional[UUID] = None
+    user_name: Optional[str] = None
+    created_at: Optional[int] = None  # epoch milliseconds
+    operate_type: Optional[int] = None
+    entity_type: Optional[int] = None
+    item_name: Optional[List[Optional[str]]] = None  # [0] = old, [1] = new
+    item_description: Optional[List[Optional[str]]] = None  # [0] = old, [1] = new
+    item_photo: Optional[List[Optional[str]]] = None  # [0] = old, [1] = new
+    item_min_stock_count: Optional[List[Optional[int]]] = None  # [0] = old, [1] = new
+    category_name: Optional[List[Optional[str]]] = None  # [0] = old, [1] = new
+    cabinet_name: Optional[List[Optional[str]]] = None  # [0] = old, [1] = new
+    cabinet_room_name: Optional[List[Optional[str]]] = None  # [0] = old, [1] = new (原 room_name)
+    quantity_count: Optional[List[Optional[int]]] = None  # [0] = old, [1] = new

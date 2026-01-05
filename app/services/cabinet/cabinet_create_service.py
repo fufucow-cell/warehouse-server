@@ -50,6 +50,7 @@ async def create_cabinet(
 
 async def _gen_record(
     household_id: UUID,
+    item_id: UUID,
     user_name: str,
     operate_type: int,
     db: AsyncSession,

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from app.table import Item, ItemCabinetQuantity
 from app.table.cabinet import Cabinet
+from app.table.category import Category
 from app.schemas.item_request import (
     UpdateItemNormalRequestModel,
     UpdateItemQuantityRequestModel,
@@ -194,7 +195,7 @@ async def update_item_quantity(
     new_item_model = await build_item_response(item, request_model.household_id, db)
     
     # 生成記錄（quantity 變化）
-    await _gen_record_quantity(cabinet_quantity_changes, request_model, db)
+    await _gen_record_quantity(item.id, cabinet_quantity_changes, request_model, db)
 
 
 # ==================== Update Position ====================
@@ -468,7 +469,24 @@ async def _update_item_category_normal(
     
     # 處理 category_id 更新：如果提供空字符串或 None，則移除 category
     if request_model.category_id is not None:
-        item.category_id = uuid_to_str(request_model.category_id)
+        if request_model.category_id == "":
+            # 空字符串表示移除 category
+            item.category_id = None
+        else:
+            # 驗證 category_id 是否存在於 category table 中，且屬於同一個 household
+            category_id_str = uuid_to_str(request_model.category_id) if isinstance(request_model.category_id, UUID) else request_model.category_id
+            category_result = await db.execute(
+                select(Category).where(
+                    Category.id == category_id_str,
+                    Category.household_id == uuid_to_str(item.household_id)
+                )
+            )
+            category = category_result.scalar_one_or_none()
+            if not category:
+                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+            
+            # 設置 category_id
+            item.category_id = category_id_str
     
     new_category_id_uuid = cast(Optional[UUID], item.category_id) if item.category_id else None
     new_category_info_dict = await get_category_info(new_category_id_uuid, cast(UUID, item.household_id), db)
@@ -515,7 +533,11 @@ async def _gen_record_normal(
     category_changed = False
     # 檢查 category_id 是否在請求中被設置，並且值有變化
     if request_model.category_id is not None:
-        category_changed = category_info.old.category_id != category_info.new.category_id
+        # 如果請求值是空字符串，表示移除 category
+        if request_model.category_id == "":
+            category_changed = category_info.old.category_id is not None
+        else:
+            category_changed = category_info.old.category_id != category_info.new.category_id
     
     has_changes = name_changed or description_changed or min_stock_alert_changed or photo_changed or category_changed
     
@@ -533,6 +555,7 @@ async def _gen_record_normal(
         await create_record(
             CreateRecordRequestModel(
                 household_id=request_model.household_id,
+                item_id=old_item_model.id,
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,
                 entity_type=EntityType.ITEM.value,
@@ -543,7 +566,7 @@ async def _gen_record_normal(
                 item_photo_old=old_item_model.photo if photo_changed else None,
                 item_photo_new=get_new_value(request_model.photo, new_item_model.photo, photo_changed),
                 category_name_old=category_info.old.level_name if category_changed else None,
-                category_name_new="" if (category_changed and category_info.new.category_id is None) else (category_info.new.level_name if category_changed else None),
+                category_name_new="" if (category_changed and request_model.category_id == "") else (category_info.new.level_name if category_changed else None),
                 min_stock_count_old=old_item_model.min_stock_alert if min_stock_alert_changed else None,
                 min_stock_count_new=new_item_model.min_stock_alert if min_stock_alert_changed else None,
             ),
@@ -552,6 +575,7 @@ async def _gen_record_normal(
 
 
 async def _gen_record_quantity(
+    item_id: UUID,
     cabinet_quantity_changes: List[tuple],  # List of (cabinet_id, cabinet_name, old_quantity, new_quantity)
     request_model: UpdateItemQuantityRequestModel,
     db: AsyncSession
@@ -560,6 +584,7 @@ async def _gen_record_quantity(
         await create_record(
             CreateRecordRequestModel(
                 household_id=request_model.household_id,
+                item_id=item_id,
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,
                 entity_type=EntityType.ITEM.value,
@@ -594,6 +619,7 @@ async def _gen_record_position(
         await create_record(
             CreateRecordRequestModel(
                 household_id=request_model.household_id,
+                item_id=old_item_model.id,
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,
                 entity_type=EntityType.ITEM.value,

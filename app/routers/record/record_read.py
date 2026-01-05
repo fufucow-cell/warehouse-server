@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
 from app.services.record_service import read_record
-from app.schemas.record_request import RecordRequestModel
+from app.schemas.record_request import ReadRecordRequestModel
 from app.schemas.record_response import RecordResponseModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id
@@ -17,7 +17,7 @@ router = APIRouter()
 @router_exception_handler
 async def read(
     request: Request,
-    request_model: RecordRequestModel = Depends(),
+    request_model: ReadRecordRequestModel = Depends(),
     db: AsyncSession = Depends(get_db),
     bg_tasks: BackgroundTasks = BackgroundTasks()
 ):
@@ -36,7 +36,7 @@ async def read(
 
 def _error_check(
     request: Request,
-    request_model: RecordRequestModel,
+    request_model: ReadRecordRequestModel,
 ) -> None:
     if not get_user_id(request):
         raise ValidationError(ServerErrorCode.UNAUTHORIZED_42)

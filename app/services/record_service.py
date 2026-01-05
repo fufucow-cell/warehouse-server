@@ -1,10 +1,11 @@
 from typing import List, TypeVar
+from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.sql import Select, Delete
 from app.table.record import Record
-from app.schemas.record_request import CreateRecordRequestModel, RecordRequestModel
+from app.schemas.record_request import CreateRecordRequestModel, ReadRecordRequestModel
 from app.schemas.record_response import RecordResponseModel
 from app.utils.util_uuid import uuid_to_str
 import logging
@@ -27,6 +28,7 @@ async def create_record(
     
     new_record = Record(
         household_id=uuid_to_str(request_model.household_id),
+        item_id=uuid_to_str(request_model.item_id) if request_model.item_id is not None else None,
         user_name=request_model.user_name,
         operate_type=request_model.operate_type,
         entity_type=request_model.entity_type,
@@ -55,7 +57,7 @@ async def create_record(
 # ==================== Read ====================
 
 async def read_record(
-    request_model: RecordRequestModel,
+    request_model: ReadRecordRequestModel,
     db: AsyncSession,
 ) -> List[RecordResponseModel]:
     query = select(Record).where(Record.household_id == uuid_to_str(request_model.household_id))
@@ -79,29 +81,33 @@ async def read_record(
         else:
             created_at_ms = None
         
+        # 辅助函数：如果两个值都为 None，返回 None；否则返回列表（不包含 None 值）
+        def make_list(old_val, new_val):
+            if old_val is None and new_val is None:
+                return None
+            result = []
+            if old_val is not None:
+                result.append(old_val)
+            if new_val is not None:
+                result.append(new_val)
+            return result if result else None
+        
         response_model = RecordResponseModel(
-            id=record.id,
+            id=UUID(record.id),
+            household_id=UUID(record.household_id),
+            item_id=UUID(record.item_id) if record.item_id else None,
             user_name=record.user_name,
+            created_at=created_at_ms,
             operate_type=record.operate_type,
             entity_type=record.entity_type,
-            item_name_old=record.item_name_old,
-            item_name_new=record.item_name_new,
-            item_description_old=record.item_description_old,
-            item_description_new=record.item_description_new,
-            item_photo_old=record.item_photo_old,
-            item_photo_new=record.item_photo_new,
-            category_name_old=record.category_name_old,
-            category_name_new=record.category_name_new,
-            room_name_old=record.room_name_old,
-            room_name_new=record.room_name_new,
-            cabinet_name_old=record.cabinet_name_old,
-            cabinet_name_new=record.cabinet_name_new,
-            quantity_count_old=record.quantity_count_old,
-            quantity_count_new=record.quantity_count_new,
-            min_stock_count_old=record.min_stock_count_old,
-            min_stock_count_new=record.min_stock_count_new,
-            description=record.description,
-            created_at=created_at_ms
+            item_name=make_list(record.item_name_old, record.item_name_new),
+            item_description=make_list(record.item_description_old, record.item_description_new),
+            item_photo=make_list(record.item_photo_old, record.item_photo_new),
+            item_min_stock_count=make_list(record.min_stock_count_old, record.min_stock_count_new),
+            category_name=make_list(record.category_name_old, record.category_name_new),
+            cabinet_name=make_list(record.cabinet_name_old, record.cabinet_name_new),
+            cabinet_room_name=make_list(record.room_name_old, record.room_name_new),
+            quantity_count=make_list(record.quantity_count_old, record.quantity_count_new)
         )
         response_models.append(response_model)
     
@@ -110,7 +116,7 @@ async def read_record(
 # ==================== Delete ====================
 
 async def delete_record(
-    request_model: RecordRequestModel,
+    request_model: ReadRecordRequestModel,
     db: AsyncSession,
 ) -> None:
     query = delete(Record).where(Record.household_id == uuid_to_str(request_model.household_id))
@@ -120,7 +126,9 @@ async def delete_record(
 
 # ==================== Private Method ====================
 
-def _apply_record_filters(query: QueryType, request_model: RecordRequestModel) -> QueryType:
+def _apply_record_filters(query: QueryType, request_model: ReadRecordRequestModel) -> QueryType:
+    if request_model.item_id is not None:
+        query = query.where(Record.item_id == uuid_to_str(request_model.item_id))
     if request_model.id is not None:
         query = query.where(Record.id == uuid_to_str(request_model.id))
     if request_model.operate_type is not None:

@@ -26,7 +26,7 @@ from app.schemas.category_response import (
 )
 from app.schemas.record_request import (
     CreateRecordRequestModel,
-    RecordRequestModel,
+    ReadRecordRequestModel,
 )
 from app.schemas.record_response import (
     RecordResponseModel,
