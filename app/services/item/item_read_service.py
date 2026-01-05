@@ -414,7 +414,6 @@ def _group_items_by_cabinet_for_items(
     items: List[ItemInCabinetInfo],
     quantities: List[ItemCabinetQuantity],
 ) -> None:
-    """將 items 按 cabinet 分組，包含 cabinet_id 為空值的 items"""
     # 構建 item id 到 ItemInCabinetInfo 的映射
     items_dict: Dict[str, ItemInCabinetInfo] = {str(item.id): item for item in items}
     
@@ -467,7 +466,7 @@ def _group_items_by_cabinet_for_items(
             # 更新 room 的 quantity（所有 cabinets 的 quantity 總和）
             room.quantity = sum(cab.quantity for cab in room.cabinets)
     
-    # 處理未綁定櫥櫃的物品（cabinet_id 為 NULL 的 items）
+    # 處理 cabinet_id 為 NULL 的 items）
     unbound_items_quantities = quantities_by_cabinet.get("empty", {})
     if unbound_items_quantities:
         # 查找或創建 room_id 為空值（""）的 room
@@ -482,7 +481,7 @@ def _group_items_by_cabinet_for_items(
             empty_room = RoomsResponseModel(room_id=None, quantity=0, cabinets=[])
             rooms.append(empty_room)
         
-        # 查找是否已經存在 "未綁定櫥櫃" cabinet（id 為 None 的虛擬櫥櫃）
+        # 查找是否已經存在 cabinet（id 為 None 的虛擬櫥櫃）
         unbound_cabinet = None
         for cabinet in empty_room.cabinets:
             if cabinet.id is None:
@@ -490,16 +489,16 @@ def _group_items_by_cabinet_for_items(
                 break
         
         if unbound_cabinet is None:
-            # 創建新的未綁定櫥櫃 cabinet（這是一個虛擬的 cabinet，用於存放未綁定櫥櫃的物品）
+            # 創建新的 cabinet（這是一個虛擬的 cabinet，用於存放 cabinet_id 為 NULL 的物品）
             unbound_cabinet = CabinetInRoomResponseModel(
                 id=None,  # 虛擬櫥櫃 ID 為 None
-                name="未綁定櫥櫃",  # 虛擬櫥櫃名稱
+                name=None,  # 虛擬櫥櫃名稱
                 quantity=0,
                 items=[]
             )
             empty_room.cabinets.append(unbound_cabinet)
         
-        # 組裝未綁定櫥櫃的 items
+        # 組裝 cabinet_id 為 NULL 的 items
         unbound_items: List[ItemInCabinetInfo] = []
         unbound_total_quantity = 0
         
@@ -518,7 +517,7 @@ def _group_items_by_cabinet_for_items(
                 unbound_items.append(unbound_item)
                 unbound_total_quantity += quantity
         
-        # 更新未綁定櫥櫃的 items 和 quantity
+        # 更新 cabinet_id 為 NULL 的 items 和 quantity
         unbound_cabinet.items = unbound_items
         unbound_cabinet.quantity = unbound_total_quantity
         

@@ -8,7 +8,9 @@ from app.schemas.cabinet_response import (
 )
 from app.schemas.item_request import (
     CreateItemRequestModel,
-    UpdateItemRequestModel,
+    UpdateItemNormalRequestModel,
+    UpdateItemQuantityRequestModel,
+    UpdateItemPositionRequestModel,
     DeleteItemRequestModel,
 )
 from app.schemas.item_response import (

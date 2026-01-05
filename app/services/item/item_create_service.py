@@ -52,18 +52,17 @@ async def create_item(
     # 總是創建 item_cabinet_quantity 記錄，cabinet_id 可以為 null，quantity 沒有值就自動補 0
     quantity = request_model.quantity if request_model.quantity > 0 else 0
     cabinet_id = uuid_to_str(request_model.cabinet_id) if request_model.cabinet_id is not None else None
-    
     item_cabinet_qty = ItemCabinetQuantity(
-        household_id=uuid_to_str(request_model.household_id),
-        item_id=new_item.id,
-        cabinet_id=cabinet_id,
-        quantity=quantity,
-        created_at=now_utc8,
-        updated_at=now_utc8,
-    )
+            household_id=uuid_to_str(request_model.household_id),
+            item_id=new_item.id,
+            cabinet_id=cabinet_id,
+            quantity=quantity,
+            created_at=now_utc8,
+            updated_at=now_utc8,
+        )
     db.add(item_cabinet_qty)
     await db.flush()
-    
+        
     # 創建 record
     new_item_model = _build_item_response(
         item=new_item,

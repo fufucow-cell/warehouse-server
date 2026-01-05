@@ -158,7 +158,7 @@ def _group_items_by_cabinet(
     # 遍歷每個 cabinet，組裝 items
     # rooms 是 List[CabinetInRoomResponseModel]，每個元素本身就是一個 cabinet
     for cabinet in rooms:
-        # 檢查是否為虛擬櫥櫃（未綁定櫥櫃，id 為 None）
+        # 檢查是否為虛擬櫥櫃（id 為 None）
         if cabinet.id is None:
             cabinet_id = "empty"
         else:
@@ -199,10 +199,10 @@ def _group_items_by_cabinet(
             cabinet.items = cabinet_items
             cabinet.quantity = total_quantity
     
-    # 處理未綁定櫥櫃的物品（cabinet_id 為 NULL 的 items）
+    #（cabinet_id 為 NULL 的 items）
     unbound_items_quantities = quantities_by_cabinet.get("empty", {})
     if unbound_items_quantities:
-        # 查找是否已經存在 "未綁定櫥櫃" cabinet（id 為 None）
+        # 查找是否已經存在 cabinet（id 為 None）
         unbound_cabinet = None
         for cabinet in rooms:
             if cabinet.id is None:
@@ -210,16 +210,16 @@ def _group_items_by_cabinet(
                 break
         
         if unbound_cabinet is None:
-            # 創建新的未綁定櫥櫃 cabinet（這是一個虛擬的 cabinet，用於存放未綁定櫥櫃的物品）
+            # 創建新的 cabinet（這是一個虛擬的 cabinet，用於存放 cabinet_id 為 NULL 的物品）
             unbound_cabinet = CabinetInRoomResponseModel(
                 id=None,  # 虛擬櫥櫃 ID 為 None
-                name="未綁定櫥櫃",  # 虛擬櫥櫃名稱
+                name=None,  # 虛擬櫥櫃名稱
                 quantity=0,
                 items=[]
             )
             rooms.append(unbound_cabinet)
         
-        # 組裝未綁定櫥櫃的 items
+        # 組裝 cabinet_id 為 NULL 的 items
         unbound_items: List[ItemInCabinetInfo] = []
         unbound_total_quantity = 0
         
@@ -246,6 +246,6 @@ def _group_items_by_cabinet(
                 unbound_items.append(unbound_item)
                 unbound_total_quantity += quantity
         
-        # 更新未綁定櫥櫃的 items 和 quantity
+        # 更新 cabinet_id 為 NULL 的 items 和 quantity
         unbound_cabinet.items = unbound_items
         unbound_cabinet.quantity = unbound_total_quantity

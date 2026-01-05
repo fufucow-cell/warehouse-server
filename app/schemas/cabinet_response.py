@@ -12,7 +12,7 @@ class CabinetResponseModel(BaseModel):
 
 class CabinetInRoomResponseModel(BaseModel):
     id: Optional[UUID] = None
-    name: str
+    name: Optional[str] = None
     quantity: int
     items: List[ItemInCabinetInfo]
 
