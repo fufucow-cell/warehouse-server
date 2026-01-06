@@ -86,7 +86,7 @@ async def _gen_record(
             item_id=item_model.id,
             user_name=request_model.user_name,
             operate_type=OperateType.CREATE.value,
-            entity_type=EntityType.ITEM.value,
+            entity_type=EntityType.ITEM_NORMAL.value,
             item_name_new=item_model.name,
             item_description_new=item_model.description,
             item_photo_new=item_model.photo,

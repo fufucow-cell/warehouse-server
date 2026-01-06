@@ -54,7 +54,7 @@ async def _gen_record(
             item_id=item_model.id,
             user_name=request_model.user_name,
             operate_type=OperateType.DELETE.value,
-            entity_type=EntityType.ITEM.value,
+            entity_type=EntityType.ITEM_NORMAL.value,
             item_name_old=item_model.name,
             item_description_old=item_model.description,
             item_photo_old=item_model.photo,

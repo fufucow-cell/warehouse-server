@@ -14,8 +14,10 @@ class OperateType(int, enum.Enum):
 
 class EntityType(int, enum.Enum):
     CABINET = 0  # 橱柜
-    ITEM = 1     # 物品
+    ITEM_NORMAL = 1 # 物品資訊
     CATEGORY = 2  # 分类
+    ITEM_QUANTITY = 3 # 物品數量
+    ITEM_POSITION = 4 # 物品位置
 
 
 class Record(Base):

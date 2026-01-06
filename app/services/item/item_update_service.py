@@ -1,8 +1,8 @@
-from typing import List, Optional, cast
+from typing import List, Optional, cast, Dict
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sql_delete
+from sqlalchemy import select, delete as sql_delete, or_
 from app.table import Item, ItemCabinetQuantity
 from app.table.cabinet import Cabinet
 from app.table.category import Category
@@ -17,7 +17,7 @@ from app.schemas.item_request import (
 )
 from app.schemas.item_response import ItemResponseModel
 from app.schemas.record_request import CreateRecordRequestModel
-from app.table.record import OperateType, EntityType
+from app.table.record import OperateType, EntityType, Record
 from app.services.record_service import create_record
 from app.services.item.item_read_service import build_item_response, get_cabinet_info, get_category_info
 from app.utils.util_error_map import ServerErrorCode
@@ -195,7 +195,7 @@ async def update_item_quantity(
     new_item_model = await build_item_response(item, request_model.household_id, db)
     
     # 生成記錄（quantity 變化）
-    await _gen_record_quantity(item.id, cabinet_quantity_changes, request_model, db)
+    await _gen_record_quantity(item.id, item.name, cabinet_quantity_changes, request_model, db)
 
 
 # ==================== Update Position ====================
@@ -214,64 +214,71 @@ async def update_item_position(
     if not item:
         raise ValidationError(ServerErrorCode.REQUEST_PATH_INVALID_42)
     
+    # 收集所有需要驗證的 cabinet_id
+    cabinet_ids_to_verify: List[UUID] = []
+    for cabinet_req in request_model.cabinets:
+        if cabinet_req.old_cabinet_id is not None:
+            cabinet_ids_to_verify.append(cabinet_req.old_cabinet_id)
+        if cabinet_req.new_cabinet_id is not None:
+            cabinet_ids_to_verify.append(cabinet_req.new_cabinet_id)
+    
+    # 一次性查詢所有符合 household_id 的 Cabinet
+    cabinets_dict: Dict[str, Cabinet] = {}
+    if cabinet_ids_to_verify:
+        household_id_str = uuid_to_str(request_model.household_id)
+        cabinet_ids_str = [uuid_to_str(cid) for cid in cabinet_ids_to_verify]
+        cabinet_query = select(Cabinet).where(
+            Cabinet.id.in_(cabinet_ids_str),
+            Cabinet.household_id == household_id_str
+        )
+        cabinet_result = await db.execute(cabinet_query)
+        cabinets_list = list(cabinet_result.scalars().all())
+        cabinets_dict = {cab.id: cab for cab in cabinets_list}
+        
+        # 檢查是否有未符合的 Cabinet
+        found_cabinet_ids = set(cabinets_dict.keys())
+        requested_cabinet_ids = set(cabinet_ids_str)
+        missing_cabinet_ids = requested_cabinet_ids - found_cabinet_ids
+        if missing_cabinet_ids:
+            raise ValidationError(ServerErrorCode.REQUEST_PATH_INVALID_42)
+    
     # 驗證每個 cabinet 請求
     for cabinet_req in request_model.cabinets:
-        # 1. 驗證 old_cabinet_id（如果不為 None，則必須在 cabinet table 中存在且屬於同一個 household）
-        if cabinet_req.old_cabinet_id is not None:
-            old_cabinet_result = await db.execute(
-                select(Cabinet).where(
-                    Cabinet.id == uuid_to_str(cabinet_req.old_cabinet_id),
-                    Cabinet.household_id == uuid_to_str(request_model.household_id)
-                )
-            )
-            old_cabinet = old_cabinet_result.scalar_one_or_none()
-            if not old_cabinet:
-                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
-        
-        # 2. 驗證 new_cabinet_id（如果不為 None，則必須在 cabinet table 中存在且屬於同一個 household）
-        if cabinet_req.new_cabinet_id is not None:
-            new_cabinet_result = await db.execute(
-                select(Cabinet).where(
-                    Cabinet.id == uuid_to_str(cabinet_req.new_cabinet_id),
-                    Cabinet.household_id == uuid_to_str(request_model.household_id)
-                )
-            )
-            new_cabinet = new_cabinet_result.scalar_one_or_none()
-            if not new_cabinet:
-                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
-        
-        # 3. 驗證 ItemCabinetQuantity 中 old_cabinet_id 的 quantity 存在
-        # 如果 old_cabinet_id 為 None，則查詢 cabinet_id IS NULL 的記錄（未綁定櫃位）
+        # 驗證 ItemCabinetQuantity 中 old_cabinet_id 的 quantity 存在
+        # 如果 old_cabinet_id 為 None，則查詢 cabinet_id IS NULL 或空字符串的記錄（未綁定櫃位）
         old_qty_query = select(ItemCabinetQuantity).where(
             ItemCabinetQuantity.item_id == item.id
         )
+        
         if cabinet_req.old_cabinet_id is not None:
             old_qty_query = old_qty_query.where(
                 ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_req.old_cabinet_id)
             )
         else:
+            # 查詢 cabinet_id 為 NULL 或空字符串的記錄
             old_qty_query = old_qty_query.where(
-                ItemCabinetQuantity.cabinet_id.is_(None)
+                or_(
+                    ItemCabinetQuantity.cabinet_id.is_(None),
+                    ItemCabinetQuantity.cabinet_id == ""
+                )
             )
         
         old_qty_result = await db.execute(old_qty_query)
         old_item_qty = old_qty_result.scalar_one_or_none()
         
-        if not old_item_qty:
-            # 如果舊 cabinet 沒有記錄，拋出錯誤
+        if not cabinet_req.is_delete and not old_item_qty:
             raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
         
-        # 4. 驗證搬移的 quantity 不能大於 old cabinet 的 item quantity
-        if cabinet_req.quantity > old_item_qty.quantity:
-            # 如果請求的移動數量大於舊 cabinet 的數量，拋出錯誤
-            raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+        if not cabinet_req.is_delete:
+            if cabinet_req.quantity > old_item_qty.quantity:
+                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
     
     old_item_model = await build_item_response(item, request_model.household_id, db)
     
     now_utc8 = datetime.now(UTC_PLUS_8)
     for cabinet_req in request_model.cabinets:
         # 從舊的 cabinet 移除 quantity
-        # 如果 old_cabinet_id 為 None，則查詢 cabinet_id IS NULL 的記錄
+        # 如果 old_cabinet_id 為 None，則查詢 cabinet_id IS NULL 或空字符串的記錄
         old_qty_query = select(ItemCabinetQuantity).where(
             ItemCabinetQuantity.item_id == item.id
         )
@@ -280,54 +287,69 @@ async def update_item_position(
                 ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_req.old_cabinet_id)
             )
         else:
+            # 查詢 cabinet_id 為 NULL 或空字符串的記錄
             old_qty_query = old_qty_query.where(
-                ItemCabinetQuantity.cabinet_id.is_(None)
+                or_(
+                    ItemCabinetQuantity.cabinet_id.is_(None),
+                    ItemCabinetQuantity.cabinet_id == ""
+                )
             )
         
         old_qty_result = await db.execute(old_qty_query)
         old_item_qty = old_qty_result.scalar_one_or_none()
         
-        # 此時已經驗證過 old_item_qty 存在且 quantity 足夠
-        if old_item_qty.quantity == cabinet_req.quantity:
-            # 如果舊數量等於移動數量，刪除舊記錄
-            await db.delete(old_item_qty)
+        # 處理 is_delete 邏輯
+        if cabinet_req.is_delete:
+            # 如果 is_delete 為 true，直接刪除記錄
+            if old_item_qty:
+                await db.delete(old_item_qty)
         else:
-            # 減少舊 cabinet 的數量
-            old_item_qty.quantity -= cabinet_req.quantity
-            old_item_qty.updated_at = now_utc8
-        
-        # 添加到新的 cabinet
-        # 如果 new_cabinet_id 為 None，則查詢 cabinet_id IS NULL 的記錄
-        new_qty_query = select(ItemCabinetQuantity).where(
-            ItemCabinetQuantity.item_id == item.id
-        )
-        if cabinet_req.new_cabinet_id is not None:
-            new_qty_query = new_qty_query.where(
-                ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_req.new_cabinet_id)
+            # 正常的搬移邏輯
+            # 此時已經驗證過 old_item_qty 存在且 quantity 足夠
+            if old_item_qty.quantity == cabinet_req.quantity:
+                # 如果舊數量等於移動數量，刪除舊記錄
+                await db.delete(old_item_qty)
+            else:
+                # 減少舊 cabinet 的數量
+                old_item_qty.quantity -= cabinet_req.quantity
+                old_item_qty.updated_at = now_utc8
+            
+            # 添加到新的 cabinet
+            # 如果 new_cabinet_id 為 None，則查詢 cabinet_id IS NULL 或空字符串的記錄
+            new_qty_query = select(ItemCabinetQuantity).where(
+                ItemCabinetQuantity.item_id == item.id
             )
-        else:
-            new_qty_query = new_qty_query.where(
-                ItemCabinetQuantity.cabinet_id.is_(None)
-            )
-        
-        new_qty_result = await db.execute(new_qty_query)
-        new_item_qty = new_qty_result.scalar_one_or_none()
-        
-        if new_item_qty:
-            # 更新現有記錄
-            new_item_qty.quantity += cabinet_req.quantity
-            new_item_qty.updated_at = now_utc8
-        else:
-            # 創建新記錄
-            new_qty = ItemCabinetQuantity(
-                household_id=item.household_id,
-                item_id=item.id,
-                cabinet_id=uuid_to_str(cabinet_req.new_cabinet_id) if cabinet_req.new_cabinet_id is not None else None,
-                quantity=cabinet_req.quantity,
-                created_at=now_utc8,
-                updated_at=now_utc8,
-            )
-            db.add(new_qty)
+            if cabinet_req.new_cabinet_id is not None:
+                new_qty_query = new_qty_query.where(
+                    ItemCabinetQuantity.cabinet_id == uuid_to_str(cabinet_req.new_cabinet_id)
+                )
+            else:
+                # 查詢 cabinet_id 為 NULL 或空字符串的記錄
+                new_qty_query = new_qty_query.where(
+                    or_(
+                        ItemCabinetQuantity.cabinet_id.is_(None),
+                        ItemCabinetQuantity.cabinet_id == ""
+                    )
+                )
+            
+            new_qty_result = await db.execute(new_qty_query)
+            new_item_qty = new_qty_result.scalar_one_or_none()
+            
+            if new_item_qty:
+                # 更新現有記錄
+                new_item_qty.quantity += cabinet_req.quantity
+                new_item_qty.updated_at = now_utc8
+            else:
+                # 創建新記錄
+                new_qty = ItemCabinetQuantity(
+                    household_id=item.household_id,
+                    item_id=item.id,
+                    cabinet_id=uuid_to_str(cabinet_req.new_cabinet_id) if cabinet_req.new_cabinet_id is not None else None,
+                    quantity=cabinet_req.quantity,
+                    created_at=now_utc8,
+                    updated_at=now_utc8,
+                )
+                db.add(new_qty)
     
     # Update updated_at to UTC+8 timezone
     item.updated_at = now_utc8
@@ -336,7 +358,7 @@ async def update_item_position(
     new_item_model = await build_item_response(item, request_model.household_id, db)
     
     # 生成記錄（position 變化）
-    await _gen_record_position(old_item_model, new_item_model, request_model, db)
+    await _gen_record_position(old_item_model, new_item_model, request_model, cabinets_dict, db)
 
 
 
@@ -558,8 +580,8 @@ async def _gen_record_normal(
                 item_id=old_item_model.id,
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,
-                entity_type=EntityType.ITEM.value,
-                item_name_old=old_item_model.name if name_changed else None,
+                entity_type=EntityType.ITEM_NORMAL.value,
+                item_name_old=old_item_model.name if name_changed else old_item_model.name,
                 item_name_new=new_item_model.name if name_changed else None,
                 item_description_old=old_item_model.description if description_changed else None,
                 item_description_new=get_new_value(request_model.description, new_item_model.description, description_changed),
@@ -576,55 +598,94 @@ async def _gen_record_normal(
 
 async def _gen_record_quantity(
     item_id: UUID,
+    item_name: str,
     cabinet_quantity_changes: List[tuple],  # List of (cabinet_id, cabinet_name, old_quantity, new_quantity)
     request_model: UpdateItemQuantityRequestModel,
     db: AsyncSession
 ) -> None:
+    # 生成统一的创建时间
+    created_at_utc8 = datetime.now(UTC_PLUS_8)
+    
+    # 为每个 cabinet 创建一条记录
     for cabinet_id, cabinet_name, old_quantity, new_quantity in cabinet_quantity_changes:
-        await create_record(
-            CreateRecordRequestModel(
-                household_id=request_model.household_id,
-                item_id=item_id,
-                user_name=request_model.user_name,
-                operate_type=OperateType.UPDATE.value,
-                entity_type=EntityType.ITEM.value,
-                cabinet_name_old=cabinet_name,
-                quantity_count_old=old_quantity,
-                quantity_count_new=new_quantity
-            ),
-            db
+        new_record = Record(
+            household_id=uuid_to_str(request_model.household_id),
+            item_id=uuid_to_str(item_id),
+            user_name=request_model.user_name,
+            operate_type=OperateType.UPDATE.value,
+            entity_type=EntityType.ITEM_QUANTITY.value,
+            item_name_old=item_name,
+            cabinet_name_old=cabinet_name,
+            quantity_count_old=old_quantity,
+            quantity_count_new=new_quantity,
+            created_at=created_at_utc8,
         )
+        db.add(new_record)
+    
+    # 统一 flush 所有记录
+    await db.flush()
 
 
 async def _gen_record_position(
     old_item_model: ItemResponseModel,
     new_item_model: ItemResponseModel,
     request_model: UpdateItemPositionRequestModel,
+    cabinets_dict: Dict[str, Cabinet],
     db: AsyncSession
 ) -> None:
-    # 檢測 cabinet 是否有變化（通過比較舊的 cabinet 和新的 cabinet）
-    # 這裡簡化處理，只要有位置移動就記錄
-    has_position_changes = False
-    for cabinet_req in request_model.cabinets:
-        if cabinet_req.old_cabinet_id != cabinet_req.new_cabinet_id:
-            has_position_changes = True
-            break
+    # 生成统一的创建时间
+    created_at_utc8 = datetime.now(UTC_PLUS_8)
     
-    if has_position_changes:
-        # 獲取 cabinet 名稱用於記錄
-        old_cabinet_ids = [cabinet_req.old_cabinet_id for cabinet_req in request_model.cabinets]
-        new_cabinet_ids = [cabinet_req.new_cabinet_id for cabinet_req in request_model.cabinets]
+    # 为每个 cabinet 创建记录
+    for cabinet_req in request_model.cabinets:
+        # 获取 old_cabinet_name
+        old_cabinet_name = None
+        if cabinet_req.old_cabinet_id is not None:
+            old_cabinet_id_str = uuid_to_str(cabinet_req.old_cabinet_id)
+            old_cabinet = cabinets_dict.get(old_cabinet_id_str)
+            if old_cabinet:
+                old_cabinet_name = old_cabinet.name
         
-        # 這裡可以進一步獲取 cabinet 名稱，但為了簡化，我們記錄基本信息
-        await create_record(
-            CreateRecordRequestModel(
-                household_id=request_model.household_id,
-                item_id=old_item_model.id,
+        # 获取 new_cabinet_name
+        new_cabinet_name = None
+        if cabinet_req.new_cabinet_id is not None:
+            new_cabinet_id_str = uuid_to_str(cabinet_req.new_cabinet_id)
+            new_cabinet = cabinets_dict.get(new_cabinet_id_str)
+            if new_cabinet:
+                new_cabinet_name = new_cabinet.name
+        
+        # 处理 is_delete 逻辑
+        if cabinet_req.is_delete:
+            # 如果 is_delete 为 true，只生成删除记录
+            delete_record = Record(
+                household_id=uuid_to_str(request_model.household_id),
+                item_id=uuid_to_str(old_item_model.id),
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,
-                entity_type=EntityType.ITEM.value,
-                # 可以添加 cabinet 相關的記錄字段，如果需要的話
-            ),
-            db
-        )
+                entity_type=EntityType.ITEM_POSITION.value,
+                item_name_old=old_item_model.name,
+                cabinet_name_old=old_cabinet_name,
+                cabinet_name_new=None,
+                quantity_count_new=None,  # 没有 quantity count
+                created_at=created_at_utc8,
+            )
+            db.add(delete_record)
+        else:
+            # 正常的搬移逻辑，创建一条记录
+            new_record = Record(
+                household_id=uuid_to_str(request_model.household_id),
+                item_id=uuid_to_str(old_item_model.id),
+                user_name=request_model.user_name,
+                operate_type=OperateType.UPDATE.value,
+                entity_type=EntityType.ITEM_POSITION.value,
+                item_name_old=old_item_model.name,
+                cabinet_name_old=old_cabinet_name,
+                cabinet_name_new=new_cabinet_name,
+                quantity_count_new=cabinet_req.quantity,  # new quantity count
+                created_at=created_at_utc8,
+            )
+            db.add(new_record)
+    
+    # 统一 flush 所有记录
+    await db.flush()
 

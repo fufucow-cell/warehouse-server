@@ -40,7 +40,15 @@ class UpdateItemQuantityRequestModel(BaseModel):
 class UpdateItemPositionCabinet(BaseModel):
     old_cabinet_id: Optional[UUID] = None
     new_cabinet_id: Optional[UUID] = None
-    quantity: int
+    quantity: Optional[int] = None
+    is_delete: bool = False
+    
+    @field_validator('old_cabinet_id', 'new_cabinet_id', mode='before')
+    @classmethod
+    def convert_empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 class UpdateItemPositionRequestModel(BaseModel):
     item_id: UUID

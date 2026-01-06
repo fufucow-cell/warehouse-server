@@ -50,11 +50,12 @@ def _error_check(
     
     # 檢查每個 cabinet 的 old_cabinet_id, new_cabinet_id 和 quantity
     for cabinet in request_model.cabinets:
-        # 檢查 old_cabinet_id 和 new_cabinet_id 不能相同
-        if cabinet.old_cabinet_id == cabinet.new_cabinet_id:
-            raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
-        
-        # 檢查 quantity 不能為空且不能小於 1
-        if cabinet.quantity is None or cabinet.quantity < 1:
-            raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+        if cabinet.is_delete is False:
+            # 檢查 old_cabinet_id 和 new_cabinet_id 不能相同（僅在非 is_delete 時）
+            if cabinet.old_cabinet_id == cabinet.new_cabinet_id:
+                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+            
+            # quantity 必須提供且大於等於 1
+            if cabinet.quantity is None or cabinet.quantity < 1:
+                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
 
