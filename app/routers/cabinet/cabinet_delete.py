@@ -39,3 +39,11 @@ def _error_check(
     user_id = get_user_id(request)
     if not user_id:
         raise ValidationError(ServerErrorCode.UNAUTHORIZED_42)
+    
+    # 檢查 user_name 是否存在
+    if not request_model.user_name or not request_model.user_name.strip():
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+    
+    # 檢查 cabinets 列表不為空（如果提供了）
+    if request_model.cabinets is not None and len(request_model.cabinets) == 0:
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)

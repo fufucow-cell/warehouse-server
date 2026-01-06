@@ -59,7 +59,7 @@ async def create_category(
         household_id=request_model.household_id,
         user_name=request_model.user_name,
         operate_type=OperateType.CREATE.value,
-        category_name_new=";".join(level_name),
+        category_name_new=" > ".join(level_name),
         db=db
     )
     

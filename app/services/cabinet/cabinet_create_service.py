@@ -32,9 +32,11 @@ async def create_cabinet(
     
     await _gen_record(
         household_id=request_model.household_id,
+        item_id=None,
         user_name=request_model.user_name,
         operate_type=OperateType.CREATE.value,
         cabinet_name_new=request_model.name,
+        room_name_new=request_model.room_name,
         db=db
     )
     
@@ -50,7 +52,7 @@ async def create_cabinet(
 
 async def _gen_record(
     household_id: UUID,
-    item_id: UUID,
+    item_id: Optional[UUID],
     user_name: str,
     operate_type: int,
     db: AsyncSession,
@@ -61,6 +63,7 @@ async def _gen_record(
     await create_record(
         CreateRecordRequestModel(
             household_id=household_id,
+            item_id=item_id,
             user_name=user_name,
             operate_type=operate_type,
             entity_type=EntityType.CABINET.value,

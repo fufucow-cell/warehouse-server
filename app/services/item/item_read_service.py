@@ -91,7 +91,7 @@ async def build_item_response(
         cabinets_result = await read_cabinet(
             ReadCabinetRequestModel(
                 household_id=household_id,
-                cabinet_ids=[cabinet_id_for_lookup]
+                cabinet_id=cabinet_id_for_lookup
             ),
             db
         )
@@ -153,7 +153,7 @@ async def get_cabinet_info(
     cabinets_result = await read_cabinet(
         ReadCabinetRequestModel(
             household_id=household_id,
-            cabinet_ids=[cabinet_id]
+            cabinet_id=cabinet_id
         ),
         db
     )
@@ -217,38 +217,29 @@ async def _get_cabinets_dict(
 ) -> Dict[UUID, Dict[str, Any]]:
     cabinets_dict = {}
     if cabinet_ids:
-        cabinets_result = await read_cabinet(
-            ReadCabinetRequestModel(
-                household_id=household_id,
-                cabinet_ids=list(cabinet_ids)
-            ),
-            db
+        # 直接查询 Cabinet 表以提高效率
+        household_id_str = uuid_to_str(household_id)
+        cabinet_ids_str = [uuid_to_str(cid) for cid in cabinet_ids]
+        cabinet_query = select(Cabinet).where(
+            Cabinet.household_id == household_id_str,
+            Cabinet.id.in_(cabinet_ids_str)
         )
-        # cabinets_result is List[CabinetInRoomResponseModel]
-        for cabinet_model in cabinets_result:
-            if cabinet_model.id is not None:
-                # CabinetInRoomResponseModel doesn't have room_id, need to query from database
-                cabinet_query = select(Cabinet).where(Cabinet.id == uuid_to_str(cabinet_model.id))
-                cabinet_result = await db.execute(cabinet_query)
-                cabinet = cabinet_result.scalar_one_or_none()
-                room_id = None
-                if cabinet and cabinet.room_id:
-                    try:
-                        room_id = UUID(cabinet.room_id)
-                    except (ValueError, AttributeError):
-                        room_id = None
-                # Convert CabinetInRoomResponseModel to CabinetResponseModel for compatibility
-                cabinet_response = CabinetResponseModel(
-                    cabinet_id=cabinet_model.id,
-                    room_id=room_id,
-                    name=cabinet_model.name or "",
-                    quantity=cabinet_model.quantity,
-                    items=cabinet_model.items
-                )
-                cabinets_dict[cabinet_model.id] = {
-                    "cabinet": cabinet_response,
-                    "room_id": room_id
-                }
+        cabinet_result = await db.execute(cabinet_query)
+        cabinets = list(cabinet_result.scalars().all())
+        
+        for cabinet in cabinets:
+            cabinet_id_uuid = cast(UUID, cabinet.id)
+            room_id = None
+            if cabinet.room_id:
+                try:
+                    room_id = UUID(cabinet.room_id)
+                except (ValueError, AttributeError):
+                    room_id = None
+            cabinets_dict[cabinet_id_uuid] = {
+                "cabinet_id": cabinet_id_uuid,
+                "cabinet_name": cast(str, cabinet.name),
+                "room_id": room_id
+            }
     return cabinets_dict
 
 

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from app.db.session import get_db
-from app.schemas.cabinet_request import ReadCabinetByRoomRequestModel
+from app.schemas.cabinet_request import ReadCabinetRequestModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id
 from app.utils.util_error_map import ServerErrorCode
@@ -19,7 +19,7 @@ router = APIRouter()
 @router_exception_handler
 async def read(
     request: Request,
-    request_model: ReadCabinetByRoomRequestModel = Depends(),
+    request_model: ReadCabinetRequestModel = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
     _error_check(request, request_model)
@@ -28,7 +28,7 @@ async def read(
 
 def _error_check(
     request: Request,
-    request_model: ReadCabinetByRoomRequestModel,
+    request_model: ReadCabinetRequestModel,
 ) -> None:
     if not get_user_id(request):
         raise ValidationError(ServerErrorCode.UNAUTHORIZED_42)

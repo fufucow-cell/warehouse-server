@@ -21,22 +21,12 @@ async def update(
     db: AsyncSession = Depends(get_db)
 ):
     _error_check(request, request_model)
-    response_models = await update_cabinet(request_model, db)
-    response_model = None
-    for room_group in response_models:
-        cabinet = next((cab for cab in room_group.cabinet if cab.cabinet_id == request_model.cabinet_id), None)
-        if cabinet:
-            response_model = cabinet
-            break
-    
-    if not response_model:
-        raise ValidationError(ServerErrorCode.REQUEST_PATH_INVALID_42)
-    
-    response = success_response(data=response_model, request=request)
+    await update_cabinet(request_model, db)
+    response = success_response(data=None, request=request)
     bg_tasks.add_task(
         log_info,
         request_model.model_dump(),
-        response_model.model_dump(),
+        None,
         request
     )
     return response
@@ -49,3 +39,22 @@ def _error_check(
     user_id = get_user_id(request)
     if not user_id:
         raise ValidationError(ServerErrorCode.UNAUTHORIZED_42)
+    
+    # 檢查 user_name 是否存在
+    if not request_model.user_name or not request_model.user_name.strip():
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+    
+    # 檢查 cabinets 列表不為空
+    if not request_model.cabinets or len(request_model.cabinets) == 0:
+        raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+    
+    # 檢查每個 cabinet 的 cabinet_id 和更新字段
+    for cabinet in request_model.cabinets:
+        # cabinet_id 必須提供
+        if cabinet.cabinet_id is None:
+            raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)
+        
+        # 如果提供了 new_cabinet_name，不能為空字串
+        if cabinet.new_cabinet_name is not None:
+            if not cabinet.new_cabinet_name.strip():
+                raise ValidationError(ServerErrorCode.REQUEST_PARAMETERS_INVALID_42)

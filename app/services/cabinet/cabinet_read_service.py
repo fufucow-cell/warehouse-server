@@ -10,7 +10,7 @@ from app.table.cabinet import Cabinet
 from app.table.item import Item
 from app.table.item_cabinet_quantity import ItemCabinetQuantity
 from app.table.category import Category
-from app.schemas.cabinet_request import ReadCabinetByRoomRequestModel, ReadCabinetRequestModel
+from app.schemas.cabinet_request import ReadCabinetRequestModel
 from app.schemas.cabinet_response import CabinetResponseModel, CabinetInRoomResponseModel, RoomsResponseModel
 from app.schemas.category_response import CategoryResponseModel
 from app.schemas.record_request import CreateRecordRequestModel
@@ -26,7 +26,7 @@ UTC_PLUS_8 = timezone(timedelta(hours=8))
 # ==================== Read ====================
 
 async def read_cabinet_by_room(
-    request_model: ReadCabinetByRoomRequestModel,
+    request_model: ReadCabinetRequestModel,
     db: AsyncSession,
     include_items: bool = True
 ) -> List[RoomsResponseModel]:
@@ -86,9 +86,9 @@ async def read_cabinet(
     db: AsyncSession
 ) -> List[CabinetInRoomResponseModel]:
     rooms_result = await read_cabinet_by_room(
-        ReadCabinetByRoomRequestModel(
+        ReadCabinetRequestModel(
             household_id=request_model.household_id,
-            room_id=None  # 獲取所有 rooms 的 cabinets
+            room_id=request_model.room_id  # 使用传入的 room_id
         ),
         db,
         include_items=False  # 不需要 items，只返回 cabinet 信息
@@ -97,9 +97,9 @@ async def read_cabinet(
     result: List[CabinetInRoomResponseModel] = []
     for room in rooms_result:
         for cabinet in room.cabinets:
-            # 如果指定了 cabinet_ids，进行过滤
-            if request_model.cabinet_ids is not None:
-                if cabinet.id is not None and cabinet.id in request_model.cabinet_ids:
+            # 如果指定了 cabinet_id，进行过滤
+            if request_model.cabinet_id is not None:
+                if cabinet.id is not None and cabinet.id == request_model.cabinet_id:
                     result.append(cabinet)
             else:
                 result.append(cabinet)
