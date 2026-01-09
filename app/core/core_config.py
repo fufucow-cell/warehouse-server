@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     API_DEBUG: bool = False
     APP_ENV: str = "dev"
     APP_NAME: str = "warehouse_server"  # 应用名称（用于数据库连接标识）
+    API_PREFIX: str = "/api/v1/warehouse"  # API 路由前缀
     
     # 数据库配置（待資料庫提供後可透過環境變數覆寫）
     DB_HOST: str = "127.0.0.1"
