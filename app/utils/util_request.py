@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 from fastapi import Request
 
 _REQUEST_ID_KEY: str = "request_id"
-_USER_ID_KEY: str = "user_id"
+_USER_ID_KEY: str = "current-member-id"
 
 def get_request_id(request: Optional[Request] = None) -> Optional[UUID]:
     return _get_id(_REQUEST_ID_KEY, request)
