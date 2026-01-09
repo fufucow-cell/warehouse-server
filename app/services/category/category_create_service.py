@@ -4,11 +4,11 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.table import Category
-from app.schemas.category_request import CreateCategoryRequestModel, ReadCategoryRequestModel
+from app.schemas.category_request import CreateCategoryRequestModel
 from app.schemas.category_response import CategoryResponseModel
 from app.schemas.record_request import CreateRecordRequestModel
 from app.services.record_service import create_record
-from app.services.category.category_read_service import read_category, get_level_names
+from app.services.category.category_read_service import get_level_names, _convert_model
 from app.table.record import OperateType, EntityType
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_error_handle import ValidationError
@@ -22,7 +22,7 @@ MAX_LEVEL_NUM = 3
 async def create_category(
     request_model: CreateCategoryRequestModel,
     db: AsyncSession
-) -> List[CategoryResponseModel]:
+) -> CategoryResponseModel:
     categories_query = select(Category).where(
         Category.household_id == uuid_to_str(request_model.household_id),
     )
@@ -63,10 +63,30 @@ async def create_category(
         db=db
     )
     
-    return await read_category(
-        ReadCategoryRequestModel(household_id=request_model.household_id, category_id=new_category.id),
-        db
-    )
+    # 构建新创建的 category 响应
+    new_category_model = _convert_model(new_category)
+    
+    # 如果存在 parent_id，查询 parent category
+    if request_model.parent_id is not None:
+        parent_result = await db.execute(
+            select(Category).where(
+                Category.id == uuid_to_str(request_model.parent_id),
+                Category.household_id == uuid_to_str(request_model.household_id)
+            )
+        )
+        parent_category = parent_result.scalar_one_or_none()
+        
+        if parent_category:
+            parent_category_model = _convert_model(parent_category)
+            # 将新创建的 category 作为 parent 的 children
+            parent_category_model.children = [new_category_model]
+            return parent_category_model
+        else:
+            # parent 不存在，只返回新创建的 category
+            return new_category_model
+    else:
+        # 没有 parent，只返回新创建的 category
+        return new_category_model
 
 # ==================== Private Method ====================
 

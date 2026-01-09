@@ -1,7 +1,7 @@
 from app.db.session import get_db
 from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
-from app.services.item.item_create_service import recognize_item_from_image
+from app.services.item.item_create_service import recognize_item_from_image, recognize_item_from_image_test
 from app.schemas.item_request import CreateItemSmartRequestModel
 from app.utils.util_response import success_response
 from app.utils.util_request import get_user_id, get_request_id

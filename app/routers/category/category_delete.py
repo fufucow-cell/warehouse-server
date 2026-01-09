@@ -21,12 +21,12 @@ async def delete(
     db: AsyncSession = Depends(get_db)
 ):
     _error_check(request, request_model)
-    response_models = await delete_category(request_model, db)
-    response = success_response(data=response_models, request=request)
+    await delete_category(request_model, db)
+    response = success_response(data=None, request=request)
     bg_tasks.add_task(
         log_info,
         request_model.model_dump(),
-        [model.model_dump() for model in response_models] if response_models else [],
+        {},
         request
     )
     return response

@@ -21,11 +21,7 @@ async def create(
     db: AsyncSession = Depends(get_db)
 ):
     _error_check(request, request_model)
-    response_models = await create_category(request_model, db)
-    response_model = response_models[0] if response_models else None
-    
-    if not response_model:
-        raise ValidationError(ServerErrorCode.INTERNAL_SERVER_ERROR_42)
+    response_model = await create_category(request_model, db)
     
     response = success_response(data=response_model, request=request)
     bg_tasks.add_task(
