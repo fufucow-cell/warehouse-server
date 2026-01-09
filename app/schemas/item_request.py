@@ -81,3 +81,10 @@ class CategoryInfo(BaseModel):
 class CategoryUpdateInfo(BaseModel):
     old: CategoryInfo
     new: CategoryInfo
+
+
+class CreateItemSmartRequestModel(BaseModel):
+    household_id: UUID
+    image: str  # base64 encoded image
+    language: str
+    user_name: str

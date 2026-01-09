@@ -130,3 +130,34 @@ def _write_log(log_data: Dict[str, Any], log_subdir: str) -> None:
             
     except Exception:
         pass
+
+# 記錄 OpenAI API 響應日誌
+def log_openai_result(
+    user_id: Optional[str],
+    request_id: Optional[str],
+    openai_response: Dict[str, Any]
+) -> None:
+    if not settings.ENABLE_LOG:
+        return
+    
+    try:
+        log_data = {
+            "user_id": user_id,
+            "request_id": request_id,
+            "data": openai_response
+        }
+        
+        project_root = Path(__file__).parent.parent.parent
+        log_dir: Path = project_root / "log" / settings.APP_ENV / "open_ai_result"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        log_file: Path = log_dir / f"log_{today}.txt"
+        
+        log_content: str = json.dumps(log_data, ensure_ascii=False, indent=2, cls=JSONEncoder)
+        
+        with open(log_file, "a", encoding="utf-8") as file:
+            file.write(log_content + "\n\n")
+            
+    except Exception:
+        pass

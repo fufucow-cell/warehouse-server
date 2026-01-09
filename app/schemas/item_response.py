@@ -31,3 +31,11 @@ class ItemInCabinetInfo(BaseModel):
     min_stock_alert: int
     photo: Optional[str]
     category: Optional[ItemCategoryResponseModel] = None
+
+
+class ItemOpenAIRecognitionResult(BaseModel):
+    name: str  # 物品名稱
+    description: str  # 物品描述
+    category_id: Optional[UUID] = None # 分類 ID
+    category: str  # 分類
+    confidence: int  # 信心度（0-100）

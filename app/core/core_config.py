@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     # 图片 URL 基础地址（用于生成完整的图片访问 URL）
     BASE_URL: str = "http://localhost:8000"
     
+    # OpenAI 配置
+    OPENAI_API_KEY: str = "please-select-your-openai-api-key"
+    OPENAI_VISION_MODEL: str = "gpt-4o"
+    OPENAI_TEXT_MODEL: str = "gpt-4o-mini"
+    OPENAI_MAX_TOKENS: int = 500
+    OPENAI_TEMPERATURE: float = 0.3
+    
     # 构建数据库 URL（支持异步和同步）
     @property
     def database_url(self) -> str:
