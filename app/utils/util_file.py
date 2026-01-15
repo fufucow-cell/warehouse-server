@@ -24,9 +24,9 @@ def delete_uploaded_file(photo_url: Optional[str]) -> bool:
             path = photo_url
         
         # 支持新旧路径格式（兼容性）
-        if path.startswith("/api/v1/warehouse/"):
-            # 旧格式：/api/v1/warehouse/uploads/DEV/... -> uploads/DEV/...
-            relative_path = path.replace("/api/v1/warehouse/", "")
+        api_prefix_with_slash = f"{settings.API_PREFIX}/"
+        if path.startswith(api_prefix_with_slash):
+            relative_path = path.replace(api_prefix_with_slash, "")
         elif path.startswith(f"/{settings.UPLOAD_DIR}/"):
             # 新格式：/uploads/DEV/... -> uploads/DEV/...
             relative_path = path.replace(f"/{settings.UPLOAD_DIR}/", "")
@@ -80,9 +80,9 @@ def get_file_path_from_url(photo_url: Optional[str]) -> Optional[Path]:
             path = photo_url
         
         # 支持新旧路径格式（兼容性）
-        if path.startswith("/api/v1/warehouse/"):
-            # 旧格式：/api/v1/warehouse/uploads/DEV/... -> uploads/DEV/...
-            relative_path = path.replace("/api/v1/warehouse/", "")
+        api_prefix_with_slash = f"{settings.API_PREFIX}/"
+        if path.startswith(api_prefix_with_slash):
+            relative_path = path.replace(api_prefix_with_slash, "")
         elif path.startswith(f"/{settings.UPLOAD_DIR}/"):
             # 新格式：/uploads/DEV/... -> uploads/DEV/...
             relative_path = path.replace(f"/{settings.UPLOAD_DIR}/", "")

@@ -24,6 +24,11 @@ Item 图片处理采用 **base64 编码传输 + 文件存储 + URL 关联** 的�
 - **关联方式**：通过 Item 表的 `photo` 字段存储图片 URL
 - **访问方式**：客户端通过返回的 URL 访问图片
 
+**配置说明：**
+- 文档中的 `{API_PREFIX}` 表示 API 路由前缀，默认值为 `/api/v1/warehouse`
+- 可通过 `warehouse_server/app/core/core_config.py` 中的 `API_PREFIX` 配置项修改
+- 实际使用时，请将 `{API_PREFIX}` 替换为配置的实际值
+
 ---
 
 ## 接收流程（创建/更新 Item）
@@ -32,7 +37,7 @@ Item 图片处理采用 **base64 编码传输 + 文件存储 + URL 关联** 的�
 
 **创建 Item 请求示例：**
 ```json
-POST /api/v1/warehouse/item/
+POST {API_PREFIX}/item/
 {
   "home_id": 1,
   "name": "笔记本电脑",
@@ -42,7 +47,7 @@ POST /api/v1/warehouse/item/
 
 **更新 Item 请求示例：**
 ```json
-PUT /api/v1/warehouse/item/
+PUT {API_PREFIX}/item/
 {
   "item_id": "123e4567-e89b-12d3-a456-426614174000",
   "photo": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
@@ -66,7 +71,7 @@ PUT /api/v1/warehouse/item/
 **流程：**
 1. 检查请求方法（GET/HEAD/OPTIONS 跳过）
 2. 检查 `Content-Length` header
-3. 判断是否为文件上传请求（`/api/v1/warehouse/upload/*`）
+3. 判断是否为文件上传请求（`{API_PREFIX}/upload/*`）
    - 文件上传：限制 500KB
    - 普通 API：限制 500KB
 4. 如果超过限制，返回错误 `REQUEST_PARAMETERS_INVALID_1`
@@ -182,8 +187,8 @@ item.photo = photo_url
 
 8. **返回 URL**
    ```python
-   file_url = f"/api/v1/warehouse/{settings.UPLOAD_DIR}/{date_dir}/{unique_filename}"
-   # 示例：/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+   file_url = f"{settings.API_PREFIX}/{settings.UPLOAD_DIR}/{date_dir}/{unique_filename}"
+   # 示例：{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
    return file_url, None
    ```
 
@@ -225,7 +230,7 @@ photo VARCHAR(500)  -- 存储图片 URL
 
 **存储内容：**
 ```
-/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
 ```
 
 **关联关系：**
@@ -278,8 +283,8 @@ return success_response(data=response_data)
   "data": {
     "id": "123e4567-e89b-12d3-a456-426614174000",
     "name": "笔记本电脑",
-    "photo": "/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
-    "url": "/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
+    "photo": "{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
+    "url": "{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
     "quantity": 1,
     ...
   },
@@ -296,13 +301,13 @@ return success_response(data=response_data)
     {
       "id": "...",
       "name": "物品1",
-      "photo": "/api/v1/warehouse/uploads/2025/11/28/uuid1.jpg",
+      "photo": "{API_PREFIX}/uploads/2025/11/28/uuid1.jpg",
       ...
     },
     {
       "id": "...",
       "name": "物品2",
-      "photo": "/api/v1/warehouse/uploads/2025/11/28/uuid2.png",
+      "photo": "{API_PREFIX}/uploads/2025/11/28/uuid2.png",
       ...
     }
   ],
@@ -322,12 +327,12 @@ return success_response(data=response_data)
 
 **完整 URL：**
 ```
-http://localhost:8000/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+http://localhost:8000{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
 ```
 
 **相对 URL（从响应中获取）：**
 ```
-/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
 ```
 
 ### 2. API Gateway 代理
@@ -459,7 +464,7 @@ ALLOWED_IMAGE_EXTENSIONS: list[str] = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
 
 **请求：**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/warehouse/item/" \
+curl -X POST "http://localhost:8000{API_PREFIX}/item/" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -477,8 +482,8 @@ curl -X POST "http://localhost:8000/api/v1/warehouse/item/" \
   "data": {
     "id": "123e4567-e89b-12d3-a456-426614174000",
     "name": "笔记本电脑",
-    "photo": "/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
-    "url": "/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
+    "photo": "{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
+    "url": "{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
     "quantity": 0,
     "min_stock_alert": 0
   },
@@ -497,14 +502,14 @@ SELECT id, name, photo FROM item WHERE id = '123e4567-e89b-12d3-a456-42661417400
 
 id: 123e4567-e89b-12d3-a456-426614174000
 name: 笔记本电脑
-photo: /api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+photo: {API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
 ```
 
 #### 2. 查询 Item 并获取图片 URL
 
 **请求：**
 ```bash
-curl -X GET "http://localhost:8000/api/v1/warehouse/item/?item_id=123e4567-e89b-12d3-a456-426614174000" \
+curl -X GET "http://localhost:8000{API_PREFIX}/item/?item_id=123e4567-e89b-12d3-a456-426614174000" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -516,8 +521,8 @@ curl -X GET "http://localhost:8000/api/v1/warehouse/item/?item_id=123e4567-e89b-
   "data": {
     "id": "123e4567-e89b-12d3-a456-426614174000",
     "name": "笔记本电脑",
-    "photo": "/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
-    "url": "/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
+    "photo": "{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
+    "url": "{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
     ...
   },
   "request_id": "..."
@@ -528,7 +533,7 @@ curl -X GET "http://localhost:8000/api/v1/warehouse/item/?item_id=123e4567-e89b-
 
 **请求：**
 ```bash
-curl "http://localhost:8000/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg"
+curl "http://localhost:8000{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg"
 ```
 
 **响应：**
@@ -539,7 +544,7 @@ curl "http://localhost:8000/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-78
 
 **请求：**
 ```bash
-curl -X PUT "http://localhost:8000/api/v1/warehouse/item/" \
+curl -X PUT "http://localhost:8000{API_PREFIX}/item/" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -549,8 +554,8 @@ curl -X PUT "http://localhost:8000/api/v1/warehouse/item/" \
 ```
 
 **处理流程：**
-1. 获取旧图片 URL：`/api/v1/warehouse/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg`
-2. 保存新图片：`/api/v1/warehouse/uploads/2025/11/28/b2c3d4e5-f6a7-8901-bcde-f12345678901.png`
+1. 获取旧图片 URL：`{API_PREFIX}/uploads/2025/11/28/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg`
+2. 保存新图片：`{API_PREFIX}/uploads/2025/11/28/b2c3d4e5-f6a7-8901-bcde-f12345678901.png`
 3. 删除旧图片文件
 4. 更新数据库中的 `photo` 字段
 
@@ -562,20 +567,20 @@ curl -X PUT "http://localhost:8000/api/v1/warehouse/item/" \
 
 ```
 客户端
-  ↓ (1) POST /api/v1/warehouse/item/ { photo: "data:image/jpeg;base64,..." }
+  ↓ (1) POST {API_PREFIX}/item/ { photo: "data:image/jpeg;base64,..." }
 API Gateway
   ↓ (2) 验证 Token、检查请求体大小
 Warehouse Server
   ↓ (3) 解析 base64、保存文件、存储 URL 到数据库
-  ↓ (4) 返回响应 { photo: "/api/v1/warehouse/uploads/..." }
+  ↓ (4) 返回响应 { photo: "{API_PREFIX}/uploads/..." }
 客户端
-  ↓ (5) GET /api/v1/warehouse/item/?item_id=...
+  ↓ (5) GET {API_PREFIX}/item/?item_id=...
 API Gateway
   ↓ (6) 转发查询请求
 Warehouse Server
   ↓ (7) 查询数据库、返回 Item（包含 photo URL）
 客户端
-  ↓ (8) GET /api/v1/warehouse/uploads/.../uuid.jpg
+  ↓ (8) GET {API_PREFIX}/uploads/.../uuid.jpg
 API Gateway
   ↓ (9) 代理静态文件请求
 Warehouse Server
