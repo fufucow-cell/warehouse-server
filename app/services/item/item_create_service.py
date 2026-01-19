@@ -1,6 +1,7 @@
 from typing import cast, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 import json
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -132,7 +133,7 @@ async def recognize_item_from_image(
     user_id: Optional[str] = None,
     request_id: Optional[str] = None,
     user_name: Optional[str] = None
-) -> ItemOpenAIRecognitionResult:
+) -> Optional[ItemOpenAIRecognitionResult]:
     try:
         # 查詢該 household 的所有 category
         household_id_str = uuid_to_str(request_model.household_id)
@@ -164,8 +165,19 @@ async def recognize_item_from_image(
 
                     ### Task:
                     1. Identify the item including brand, color, material, and size/model if visible.
-                    2. Select the most appropriate category from the list below. If none fit, propose a concise new category name (1-3 words).
+                    2. Select the most appropriate category from the available list below. If no existing category accurately represents the item, create a precise new category name.
+                    
                     Available categories: {category_names_text}
+
+                    ### Category Selection Rules:
+                    - **STRICT MATCHING**: Only use an existing category if it accurately and specifically represents the item. Do NOT force-fit items into inappropriate categories.
+                    - **Examples of WRONG categorization**:
+                      * Tea cup → "食品" (Food) ❌ Should be "茶具" (Tea Set)
+                      * Sports shoes → "新類別" (New Category) ❌ Should be "鞋類" (Footwear)
+                    - **When to create a new category**:
+                      * If the item belongs to a distinct type that is NOT represented in the available categories
+                      * The new category name must be specific, accurate, and in **{request_model.language}** (e.g., "茶具", "鞋類", "電子產品")
+                    - **FORBIDDEN**: Never return placeholder terms like "新類別", "新类别", "New Category", or any generic labels. Always return a specific, meaningful category name.
 
                     ### Output Requirements:
                     - ALL fields must be in **{request_model.language}**.
@@ -175,14 +187,16 @@ async def recognize_item_from_image(
                     ### JSON Fields:
                     - "name": A concise but descriptive title (e.g., "Apple iPhone 15 Pro, Natural Titanium").
                     - "description": A detailed paragraph describing distinctive features, condition, and visual details.
-                    - "category": The chosen category name from the available list, or a new category name if none fit. IMPORTANT: Return ONLY the category name itself, without any prefix like "New Category:" or any other labels.
+                    - "category": Either an exact match from the available categories list, OR a precise new category name (1-3 words) if no existing category fits. MUST be a specific, meaningful category name - NO placeholders allowed.
                     - "confidence": An integer from 0-100 reflecting your certainty.
 
                     ### Language Restriction:
                     - Language: {request_model.language} (Mandatory for all text fields)
                     
                     ### Critical Rule for Category Field:
-                    - Return ONLY the category name, nothing else. Do NOT add prefixes, labels, or explanations."""
+                    - Return ONLY the category name, nothing else. Do NOT add prefixes, labels, or explanations.
+                    - If creating a new category, ensure it is specific and accurate (e.g., "茶具" for tea cups, "鞋類" for shoes, "運動器材" for sports equipment).
+                    - NEVER return generic placeholders like "新類別", "新类别", "新分类", or "New Category"."""
 
         # 調用 OpenAI Vision API
         response = client.chat.completions.create(
@@ -240,28 +254,18 @@ async def recognize_item_from_image(
             
             result = json.loads(json_string)
             
-            # 獲取識別出的 category，並清理可能的前綴
-            recognized_category = result.get("category", "Miscellaneous")
-            # 移除可能的前綴（如 "新類別:", "New Category:", "新分类:" 等）
-            recognized_category = recognized_category.strip()
-            # 移除常見的前綴模式
-            prefix_patterns = [
-                r"^新類別[:：]\s*",
-                r"^新分类[:：]\s*",
-                r"^New Category[:：]\s*",
-                r"^新カテゴリ[:：]\s*",
-            ]
-            for pattern in prefix_patterns:
-                recognized_category = re.sub(pattern, "", recognized_category, flags=re.IGNORECASE)
-            recognized_category = recognized_category.strip()
+            # 獲取識別出的 category
+            recognized_category = result.get("category", "Miscellaneous").strip()
             
             # 檢查識別出的 category 是否在現有分類中
             category_id = None
+            isNewCategory = False
             if recognized_category in existing_category_names:
                 # 匹配到現有分類，從 categories 列表中查找對應的 category 並獲取 id
                 matched_category = next((cat for cat in categories if cat.name == recognized_category), None)
                 if matched_category:
                     category_id = UUID(matched_category.id)
+                    isNewCategory = False
             else:
                 # 識別出的物品不屬於任何現有分類，使用 category_create_service 創建新的 category
                 category_response = await create_category(
@@ -274,31 +278,106 @@ async def recognize_item_from_image(
                     db
                 )
                 # 從返回的 response 中獲取新創建的 category id
-                if category_response and len(category_response) > 0:
-                    category_id = category_response[0].id
+                # 如果返回的對象有 children，說明返回的是 parent，新創建的 category 在 children 中
+                # 否則，返回的就是新創建的 category 本身
+                if category_response.children and len(category_response.children) > 0:
+                    # 新創建的 category 在 children 的最後一個位置
+                    category_id = category_response.children[-1].id
                 else:
-                    category_id = None
+                    category_id = category_response.id
+                isNewCategory = True
             
             return ItemOpenAIRecognitionResult(
                 name=result.get("name", "Unknown Item"),
                 description=result.get("description", "No description available"),
                 category_id=category_id,
                 category=recognized_category,
+                is_new_category=isNewCategory,
                 confidence=result.get("confidence", 50),
             )
         except (json.JSONDecodeError, KeyError) as parse_error:
-            # 如果 JSON 解析失敗，返回降級結果
-            return ItemOpenAIRecognitionResult(
-                name="Unknown Item",
-                description=content[:200] if len(content) > 200 else content,  # 限制描述長度
-                category="Miscellaneous",
-                confidence=0,
-            )
+            # 如果 JSON 解析失敗，直接拋出錯誤
+            raise ValueError(f"Failed to parse OpenAI response: {str(parse_error)}") from parse_error
     except Exception as error:
-        # 處理所有其他錯誤
+        # 直接拋出錯誤
+        raise
+
+async def recognize_item_from_image_test(
+    request_model: CreateItemSmartRequestModel,
+    db: AsyncSession,
+    user_id: Optional[str] = None,
+    request_id: Optional[str] = None,
+    user_name: Optional[str] = None
+) -> Optional[ItemOpenAIRecognitionResult]:
+    try:
+        # 查詢該 household 的所有 category
+        household_id_str = uuid_to_str(request_model.household_id)
+        categories_query = select(Category).where(Category.household_id == household_id_str)
+        categories_result = await db.execute(categories_query)
+        categories = categories_result.scalars().all()
+        
+        # 用 Set 收集所有的 category name
+        existing_category_names = {category.name for category in categories}
+        
+        # 讀取日誌文件的最後一筆資料
+        project_root = Path(__file__).parent.parent.parent.parent
+        log_file_path = project_root / "log" / settings.APP_ENV / "open_ai_result" / "log_2026-01-09.txt"
+        
+        if not log_file_path.exists():
+            raise ValueError(f"Log file not found: {log_file_path}")
+        
+        # 讀取並解析 JSON 文件
+        with open(log_file_path, "r", encoding="utf-8") as f:
+            log_entry = json.load(f)
+        
+        # 提取 content 並解析
+        content = log_entry.get("data", {}).get("content", "")
+        if not content:
+            raise ValueError("No content found in log entry")
+        
+        result = json.loads(content)
+        
+        # 獲取識別出的 category
+        recognized_category = result.get("category", "Miscellaneous").strip()
+        
+        # 檢查識別出的 category 是否在現有分類中
+        category_id = None
+        isNewCategory = False
+        if recognized_category in existing_category_names:
+            # 匹配到現有分類，從 categories 列表中查找對應的 category 並獲取 id
+            matched_category = next((cat for cat in categories if cat.name == recognized_category), None)
+            if matched_category:
+                category_id = UUID(matched_category.id)
+                isNewCategory = False
+        else:
+            # 識別出的物品不屬於任何現有分類，使用 category_create_service 創建新的 category
+            category_response = await create_category(
+                CreateCategoryRequestModel(
+                    household_id=request_model.household_id,
+                    name=recognized_category,
+                    parent_id=None,
+                    user_name=user_name or ""
+                ),
+                db
+            )
+            # 從返回的 response 中獲取新創建的 category id
+            # 如果返回的對象有 children，說明返回的是 parent，新創建的 category 在 children 中
+            # 否則，返回的就是新創建的 category 本身
+            if category_response.children and len(category_response.children) > 0:
+                # 新創建的 category 在 children 的最後一個位置
+                category_id = category_response.children[-1].id
+            else:
+                category_id = category_response.id
+            isNewCategory = True
+        
         return ItemOpenAIRecognitionResult(
-            name="Unknown Item",
-            description="Unable to recognize item",
-            category="Miscellaneous",
-            confidence=0,
+            name=result.get("name", "Unknown Item"),
+            description=result.get("description", "No description available"),
+            category_id=category_id,
+            category=recognized_category,
+            is_new_category=isNewCategory,
+            confidence=result.get("confidence", 50),
         )
+    except Exception as error:
+        # 直接拋出錯誤
+        raise

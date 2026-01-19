@@ -1,7 +1,3 @@
-"""
-文件工具函数
-处理文件删除、路径转换、base64 图片保存等操作
-"""
 import os
 import base64
 import uuid
@@ -12,15 +8,6 @@ from app.core.core_config import settings
 
 
 def delete_uploaded_file(photo_url: Optional[str]) -> bool:
-    """
-    删除上传的文件
-    
-    Args:
-        photo_url: 照片的 URL 路径（如：/api/v1/warehouse/uploads/2025/11/27/uuid.jpg）
-    
-    Returns:
-        bool: 删除成功返回 True，文件不存在或删除失败返回 False
-    """
     if not photo_url:
         return False
     
@@ -37,9 +24,9 @@ def delete_uploaded_file(photo_url: Optional[str]) -> bool:
             path = photo_url
         
         # 支持新旧路径格式（兼容性）
-        if path.startswith("/api/v1/warehouse/"):
-            # 旧格式：/api/v1/warehouse/uploads/DEV/... -> uploads/DEV/...
-            relative_path = path.replace("/api/v1/warehouse/", "")
+        api_prefix_with_slash = f"{settings.API_PREFIX}/"
+        if path.startswith(api_prefix_with_slash):
+            relative_path = path.replace(api_prefix_with_slash, "")
         elif path.startswith(f"/{settings.UPLOAD_DIR}/"):
             # 新格式：/uploads/DEV/... -> uploads/DEV/...
             relative_path = path.replace(f"/{settings.UPLOAD_DIR}/", "")
@@ -78,15 +65,6 @@ def delete_uploaded_file(photo_url: Optional[str]) -> bool:
 
 
 def get_file_path_from_url(photo_url: Optional[str]) -> Optional[Path]:
-    """
-    从 URL 获取本地文件路径
-    
-    Args:
-        photo_url: 照片的 URL 路径
-    
-    Returns:
-        Path: 本地文件路径，如果路径无效返回 None
-    """
     if not photo_url:
         return None
     
@@ -102,9 +80,9 @@ def get_file_path_from_url(photo_url: Optional[str]) -> Optional[Path]:
             path = photo_url
         
         # 支持新旧路径格式（兼容性）
-        if path.startswith("/api/v1/warehouse/"):
-            # 旧格式：/api/v1/warehouse/uploads/DEV/... -> uploads/DEV/...
-            relative_path = path.replace("/api/v1/warehouse/", "")
+        api_prefix_with_slash = f"{settings.API_PREFIX}/"
+        if path.startswith(api_prefix_with_slash):
+            relative_path = path.replace(api_prefix_with_slash, "")
         elif path.startswith(f"/{settings.UPLOAD_DIR}/"):
             # 新格式：/uploads/DEV/... -> uploads/DEV/...
             relative_path = path.replace(f"/{settings.UPLOAD_DIR}/", "")
@@ -130,15 +108,6 @@ def get_file_path_from_url(photo_url: Optional[str]) -> Optional[Path]:
 
 
 def validate_base64_image(base64_str: str) -> bool:
-    """
-    驗證 base64 字符串是否為有效的圖片格式
-    
-    Args:
-        base64_str: base64 字符串（格式：data:image/jpeg;base64,xxx 或直接 base64 字符串）
-    
-    Returns:
-        bool: 如果為有效的 base64 圖片格式返回 True，否則返回 False
-    """
     if not base64_str or not base64_str.strip():
         return False
     
@@ -182,15 +151,6 @@ def validate_base64_image(base64_str: str) -> bool:
 
 
 def save_base64_image(base64_str: str) -> Optional[str]:
-    """
-    将 base64 字符串保存为图片文件
-    
-    Args:
-        base64_str: base64 字符串（格式：data:image/jpeg;base64,xxx 或直接 base64 字符串）
-    
-    Returns:
-        Optional[str]: 文件的 URL 路径，成功时返回，失败时返回 None
-    """
     import logging
     logger = logging.getLogger(__name__)
     

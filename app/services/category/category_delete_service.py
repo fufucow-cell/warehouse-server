@@ -3,11 +3,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from app.table import Category
-from app.schemas.category_request import DeleteCategoryRequestModel, ReadCategoryRequestModel
-from app.schemas.category_response import CategoryResponseModel
+from app.schemas.category_request import DeleteCategoryRequestModel
 from app.schemas.record_request import CreateRecordRequestModel
 from app.services.record_service import create_record
-from app.services.category.category_read_service import read_category
 from app.table.record import OperateType, EntityType
 from app.utils.util_error_map import ServerErrorCode
 from app.utils.util_error_handle import ValidationError
@@ -17,7 +15,7 @@ from app.utils.util_uuid import uuid_to_str
 async def delete_category(
     request_model: DeleteCategoryRequestModel,
     db: AsyncSession
-) -> List[CategoryResponseModel]:
+) -> None:
     # 获取要删除的 category 信息
     result = await db.execute(
         select(Category).where(
@@ -45,11 +43,6 @@ async def delete_category(
         operate_type=OperateType.DELETE.value,
         category_name_old=category_name,
         db=db
-    )
-    
-    return await read_category(
-        ReadCategoryRequestModel(household_id=request_model.household_id),
-        db
     )
 
 

@@ -38,4 +38,5 @@ class ItemOpenAIRecognitionResult(BaseModel):
     description: str  # 物品描述
     category_id: Optional[UUID] = None # 分類 ID
     category: str  # 分類
+    is_new_category: bool = False # 是否是新分類
     confidence: int  # 信心度（0-100）

@@ -521,7 +521,7 @@ uvicorn main:app --host 0.0.0.0 --port 8003 --workers 4
 ### 主要 API 端點
 
 - `GET /health` - 健康檢查
-- `GET /api/v1/warehouse/...` - 倉庫相關 API
+- `GET {API_PREFIX}/...` - 倉庫相關 API
 
 詳細 API 文檔請參考 Swagger UI。
 

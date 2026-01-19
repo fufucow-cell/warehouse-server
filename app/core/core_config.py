@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     API_DEBUG: bool = False
     APP_ENV: str = "dev"
     APP_NAME: str = "warehouse_server"  # 应用名称（用于数据库连接标识）
+    API_PREFIX: str = "/api/v1/warehouse"  # API 路由前缀
     
     # 数据库配置（待資料庫提供後可透過環境變數覆寫）
     DB_HOST: str = "127.0.0.1"
@@ -43,7 +44,7 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_EXTENSIONS: list[str] = [".jpg", ".jpeg", ".png"]  # 允许的图片扩展名
     
     # 图片 URL 基础地址（用于生成完整的图片访问 URL）
-    BASE_URL: str = "http://localhost:8000"
+    BASE_URL: str = "http://192.168.31.159:8000"
     
     # OpenAI 配置
     OPENAI_API_KEY: str = "please-select-your-openai-api-key"
