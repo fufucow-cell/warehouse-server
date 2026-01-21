@@ -23,7 +23,7 @@ app = FastAPI(
 )
 
 # 添加尾部斜杠处理中间件（需要在 CORS 之前）
-app.add_middleware(TrailingSlashMiddleware)
+# app.add_middleware(TrailingSlashMiddleware)
 
 # CORS middleware
 app.add_middleware(
