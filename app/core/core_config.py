@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_EXTENSIONS: list[str] = [".jpg", ".jpeg", ".png"]  # 允许的图片扩展名
     
     # 图片 URL 基础地址（用于生成完整的图片访问 URL）
-    BASE_URL: str = "http://192.168.31.159:8000"
+    BASE_URL: str = "http://127.0.0.1:8003"
     
     # OpenAI 配置
     OPENAI_API_KEY: str = "please-select-your-openai-api-key"
