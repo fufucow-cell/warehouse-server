@@ -45,9 +45,9 @@ def log_request(
             request_info["method"] = request.method
             request_info["path"] = request.url.path
             request_id_uuid = get_request_id(request)
-            user_id_uuid = get_user_id(request)
+            user_id = get_user_id(request)
             request_info["request_id"] = str(request_id_uuid) if request_id_uuid else None
-            request_info["user_id"] = str(user_id_uuid) if user_id_uuid else None
+            request_info["user_id"] = str(user_id) if user_id else None
             
             # 添加 headers 資訊
             headers_dict = {}
