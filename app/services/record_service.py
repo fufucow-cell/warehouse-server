@@ -94,7 +94,7 @@ async def read_record(
         
         response_model = RecordResponseModel(
             id=UUID(record.id),
-            household_id=UUID(record.household_id),
+            household_id=record.household_id,
             item_id=UUID(record.item_id) if record.item_id else None,
             user_name=record.user_name,
             created_at=created_at_ms,
