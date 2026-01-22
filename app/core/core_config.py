@@ -13,11 +13,11 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1/warehouse"  # API 路由前缀
     
     # 数据库配置（待資料庫提供後可透過環境變數覆寫）
-    DB_HOST: str = "mysql"
-    DB_PORT: int = 3306
-    DB_USER: str = "engo_warehouse"
-    DB_PASSWORD: str = "engo_warehouse@iop890"
-    DB_NAME: str = "engo_warehouse"
+    DB_HOST: str = "127.0.0.1"
+    DB_PORT: int = 3307
+    DB_USER: str = "cowlin"
+    DB_PASSWORD: str = "abc123"
+    DB_NAME: str = "smartwarehouse_warehouse_dev"
     DB_DRIVER: str = "mysql"
     
     # JWT 配置（与 auth_server 共享）
