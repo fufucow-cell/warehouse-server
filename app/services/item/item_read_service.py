@@ -14,6 +14,29 @@ from app.schemas.category_request import ReadCategoryRequestModel
 from app.services.cabinet.cabinet_read_service import read_cabinet
 from app.services.category.category_read_service import read_category, gen_single_category_tree
 from app.utils.util_uuid import uuid_to_str
+from app.core.core_config import settings
+
+# ==================== Helper Functions ====================
+
+def _add_domain_to_photo(photo: Optional[str]) -> Optional[str]:
+    """给照片路径添加 domain"""
+    if not photo:
+        return None
+    
+    # 如果已经是完整 URL，直接返回
+    if photo.startswith("http://") or photo.startswith("https://"):
+        return photo
+    
+    # 如果是相对路径，添加 domain
+    if settings.BASE_URL:
+        # 确保 BASE_URL 不以 / 结尾，photo 以 / 开头
+        base_url = settings.BASE_URL.rstrip('/')
+        photo_path = photo if photo.startswith('/') else f'/{photo}'
+        return f"{base_url}{photo_path}"
+    
+    # 如果没有配置 BASE_URL，返回原始路径
+    return photo
+
 
 # ==================== Read ====================
 async def read_item(
@@ -50,7 +73,7 @@ async def read_item(
 
         if valid_cabinet_ids:
             cabinets_query = select(Cabinet).where(
-                Cabinet.household_id == household_id_str,
+                Cabinet.household_id == request_model.household_id,
                 Cabinet.id.in_(valid_cabinet_ids)
             )
             cabinets_result = await db.execute(cabinets_query)
@@ -132,7 +155,7 @@ async def build_item_response(
         description=cast(Optional[str], item.description),
         quantity=quantity,
         min_stock_alert=cast(int, item.min_stock_alert),
-        photo=cast(Optional[str], item.photo)
+        photo=_add_domain_to_photo(cast(Optional[str], item.photo))
     )
 
 
@@ -309,7 +332,7 @@ def _gen_item_with_category_tree(
                 description=cast(Optional[str], item.description),
                 quantity=0,  # 初始值，後續會更新
                 min_stock_alert=cast(int, item.min_stock_alert),
-                photo=cast(Optional[str], item.photo),
+                photo=_add_domain_to_photo(cast(Optional[str], item.photo)),
                 category=item_category_model
             )
         )
@@ -434,7 +457,7 @@ def _group_items_by_cabinet_for_items(
                         description=item.description,
                         quantity=quantity,  # 使用該 cabinet 中的 quantity
                         min_stock_alert=item.min_stock_alert,
-                        photo=item.photo,
+                        photo=_add_domain_to_photo(item.photo),
                         category=item.category
                     )
                     cabinet_items.append(cabinet_item)
@@ -492,7 +515,7 @@ def _group_items_by_cabinet_for_items(
                     description=item.description,
                     quantity=quantity,
                     min_stock_alert=item.min_stock_alert,
-                    photo=item.photo,
+                    photo=_add_domain_to_photo(item.photo),
                     category=item.category
                 )
                 unbound_items.append(unbound_item)

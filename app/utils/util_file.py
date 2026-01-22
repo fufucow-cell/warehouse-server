@@ -218,16 +218,11 @@ def save_base64_image(base64_str: str) -> Optional[str]:
         with open(file_path, "wb") as f:
             f.write(image_data)
         
-        # 返回文件 URL（完整 URL，通过 API Gateway 访问）
+        # 返回文件相对路径（不包含域名）
         # /uploads/DEV/2025/11/28/uuid.jpg
         relative_path = f"/{settings.UPLOAD_DIR}/{env_folder}/{date_dir}/{unique_filename}"
-        # 如果 BASE_URL 已配置，生成完整 URL；否则返回相对路径
-        if settings.BASE_URL:
-            file_url = f"{settings.BASE_URL.rstrip('/')}{relative_path}"
-        else:
-            file_url = relative_path
         
-        return file_url
+        return relative_path
         
     except Exception as e:
         logger.error(f"保存图片失败：{str(e)}", exc_info=True)
