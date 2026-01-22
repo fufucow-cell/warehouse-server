@@ -62,7 +62,7 @@ async def _error_check(
     if request_model.cabinet_id is not None:
         cabinet_query = select(Cabinet).where(
             Cabinet.id == uuid_to_str(request_model.cabinet_id),
-            Cabinet.household_id == uuid_to_str(request_model.household_id)
+            Cabinet.household_id == request_model.household_id
         )
         cabinet_result = await db.execute(cabinet_query)
         cabinet = cabinet_result.scalar_one_or_none()

@@ -24,7 +24,7 @@ async def create_category(
     db: AsyncSession
 ) -> CategoryResponseModel:
     categories_query = select(Category).where(
-        Category.household_id == uuid_to_str(request_model.household_id),
+        Category.household_id == request_model.household_id,
     )
     result = await db.execute(categories_query)
     all_categories = list(result.scalars().all())
@@ -46,7 +46,7 @@ async def create_category(
     
     now_utc8 = datetime.now(UTC_PLUS_8)
     new_category = Category(
-        household_id=uuid_to_str(request_model.household_id),
+        household_id=request_model.household_id,
         name=request_model.name,
         parent_id=uuid_to_str(request_model.parent_id),
         created_at=now_utc8,

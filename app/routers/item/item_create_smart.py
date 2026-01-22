@@ -32,7 +32,7 @@ async def recognize(
     response = success_response(data=response_model, request=request)
     bg_tasks.add_task(
         log_info,
-        {"household_id": str(request_model.household_id), "image_length": len(request_model.image)},
+        {"household_id": request_model.household_id, "image_length": len(request_model.image)},
         response_model.model_dump(),
         request
     )

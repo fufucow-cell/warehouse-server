@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 class CreateRecordRequestModel(BaseModel):
-    household_id: UUID
+    household_id: str
     item_id: Optional[UUID] = None
     user_name: str
     operate_type: int
@@ -29,7 +29,7 @@ class CreateRecordRequestModel(BaseModel):
 class ReadRecordRequestModel(BaseModel):
     id: Optional[UUID] = None
     item_id: Optional[UUID] = None
-    household_id: UUID
+    household_id: str
     operate_type: Optional[int] = None
     entity_type: Optional[int] = None
     start_date: Optional[int] = None  # epoch milliseconds

@@ -25,7 +25,7 @@ class Record(Base):
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     item_id = Column(String(36), nullable=True, index=True)
-    household_id = Column(String(36), nullable=False, index=True)
+    household_id = Column(String(255), nullable=False, index=True)
     user_name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     operate_type = Column(SmallInteger, nullable=False, index=True)
     entity_type = Column(SmallInteger, nullable=False, index=True)

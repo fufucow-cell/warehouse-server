@@ -20,8 +20,7 @@ async def read_item(
     request_model: ReadItemRequestModel,
     db: AsyncSession
 ) -> List[RoomsResponseModel]:
-    household_id_str = uuid_to_str(request_model.household_id)
-    items_query = select(Item).where(Item.household_id == household_id_str)
+    items_query = select(Item).where(Item.household_id == request_model.household_id)
     items_result = await db.execute(items_query)
     all_items = list(items_result.scalars().all())
     
@@ -29,12 +28,12 @@ async def read_item(
         return []
     
     all_item_ids = {item.id for item in all_items}
-    category_query = select(Category).where(Category.household_id == household_id_str)
+    category_query = select(Category).where(Category.household_id == request_model.household_id)
     category_result = await db.execute(category_query)
     all_categories = list(category_result.scalars().all())
     quantities_query = select(ItemCabinetQuantity).where(
         ItemCabinetQuantity.item_id.in_(all_item_ids),
-        ItemCabinetQuantity.household_id == household_id_str
+        ItemCabinetQuantity.household_id == request_model.household_id
     )
     quantities_result = await db.execute(quantities_query)
     all_quantities = list(quantities_result.scalars().all())
@@ -67,7 +66,7 @@ async def read_item(
 
 async def build_item_response(
     item: Item,
-    household_id: UUID,
+    household_id: str,
     db: AsyncSession,
     cabinet_id: Optional[UUID] = None
 ) -> ItemResponseModel:
@@ -139,7 +138,7 @@ async def build_item_response(
 
 async def get_cabinet_info(
     cabinet_id: Optional[UUID],
-    household_id: UUID,
+    household_id: str,
     db: AsyncSession
 ) -> Dict[str, Any]:
     """獲取 cabinet 資訊，被 update 服務使用"""
@@ -171,10 +170,7 @@ async def get_cabinet_info(
                 cabinet_result = await db.execute(cabinet_query)
                 cabinet = cabinet_result.scalar_one_or_none()
                 if cabinet and cabinet.room_id:
-                    try:
-                        room_id = UUID(cabinet.room_id)
-                    except (ValueError, AttributeError):
-                        room_id = None
+                    room_id = cabinet.room_id
                 break
     
     return {
@@ -186,7 +182,7 @@ async def get_cabinet_info(
 
 async def get_category_info(
     category_id: Optional[UUID],
-    household_id: UUID,
+    household_id: str,
     db: AsyncSession
 ) -> Dict[str, Any]:
     if category_id is None:
@@ -211,17 +207,16 @@ async def get_category_info(
 # ==================== Private Methods ====================
 
 async def _get_cabinets_dict(
-    household_id: UUID,
+    household_id: str,
     cabinet_ids: Set[UUID],
     db: AsyncSession
 ) -> Dict[UUID, Dict[str, Any]]:
     cabinets_dict = {}
     if cabinet_ids:
         # 直接查询 Cabinet 表以提高效率
-        household_id_str = uuid_to_str(household_id)
         cabinet_ids_str = [uuid_to_str(cid) for cid in cabinet_ids]
         cabinet_query = select(Cabinet).where(
-            Cabinet.household_id == household_id_str,
+            Cabinet.household_id == household_id,
             Cabinet.id.in_(cabinet_ids_str)
         )
         cabinet_result = await db.execute(cabinet_query)
@@ -229,12 +224,7 @@ async def _get_cabinets_dict(
         
         for cabinet in cabinets:
             cabinet_id_uuid = cast(UUID, cabinet.id)
-            room_id = None
-            if cabinet.room_id:
-                try:
-                    room_id = UUID(cabinet.room_id)
-                except (ValueError, AttributeError):
-                    room_id = None
+            room_id = cabinet.room_id if cabinet.room_id else None
             cabinets_dict[cabinet_id_uuid] = {
                 "cabinet_id": cabinet_id_uuid,
                 "cabinet_name": cast(str, cabinet.name),
@@ -244,7 +234,7 @@ async def _get_cabinets_dict(
 
 
 async def _get_categories_dict(
-    household_id: UUID,
+    household_id: str,
     category_ids: Set[UUID],
     db: AsyncSession
 ) -> Dict[UUID, CategoryResponseModel]:
@@ -354,7 +344,7 @@ def _group_cabinets_by_room_for_items(
     for cabinet in cabinets:
         cabinet_model = CabinetResponseModel(
             cabinet_id=cast(UUID, cabinet.id),
-            room_id=cast(Optional[UUID], cabinet.room_id),
+            room_id=cabinet.room_id,
             name=cast(str, cabinet.name),
             quantity=0,  # 初始值，後續會更新
             items=[]  # 初始值，後續會更新

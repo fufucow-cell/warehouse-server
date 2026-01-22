@@ -21,8 +21,6 @@ async def update_cabinet(
     request_model: UpdateCabinetRequestModel,
     db: AsyncSession
 ) -> None:
-    household_id_str = uuid_to_str(request_model.household_id)
-    
     # 收集所有需要更新的 cabinet_id
     cabinet_ids = [cabinet_info.cabinet_id for cabinet_info in request_model.cabinets]
     cabinet_ids_str = [uuid_to_str(cid) for cid in cabinet_ids]
@@ -30,7 +28,7 @@ async def update_cabinet(
     # 一次性查询所有需要更新的 cabinets
     cabinets_query = select(Cabinet).where(
         Cabinet.id.in_(cabinet_ids_str),
-        Cabinet.household_id == household_id_str
+        Cabinet.household_id == request_model.household_id
     )
     cabinets_result = await db.execute(cabinets_query)
     cabinets_list = list(cabinets_result.scalars().all())
@@ -57,16 +55,14 @@ async def update_cabinet(
         
         old_cabinet_name = cast(str, cabinet.name)
         old_room_id_str = cabinet.room_id
-        old_room_id = cast(Optional[UUID], UUID(old_room_id_str)) if old_room_id_str else None
         
         is_room_changed = False
         is_cabinet_name_changed = False
         
         # 更新 room_id
         if cabinet_info.new_room_id is not None:
-            new_room_id_str = uuid_to_str(cabinet_info.new_room_id)
-            if old_room_id_str != new_room_id_str:
-                cabinet.room_id = new_room_id_str
+            if old_room_id_str != cabinet_info.new_room_id:
+                cabinet.room_id = cabinet_info.new_room_id
                 is_room_changed = True
         
         # 更新 cabinet name
@@ -96,7 +92,7 @@ async def update_cabinet(
     # 生成所有 records（使用相同的创建时间）
     if records_to_create:
         await _gen_record(
-            household_id_str=household_id_str,
+            household_id_str=request_model.household_id,
             user_name=request_model.user_name,
             records_info=records_to_create,
             created_at=now_utc8,

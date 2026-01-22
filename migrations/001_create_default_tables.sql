@@ -6,7 +6,7 @@
 
 CREATE TABLE IF NOT EXISTS category (
     id CHAR(36) PRIMARY KEY,
-    household_id CHAR(36) NOT NULL,
+    household_id VARCHAR(255) NOT NULL,
     name VARCHAR(100) NOT NULL,
     parent_id CHAR(36),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -23,8 +23,8 @@ CREATE INDEX ix_category_parent_id ON category(parent_id);
 
 CREATE TABLE IF NOT EXISTS cabinet (
     id CHAR(36) PRIMARY KEY,
-    household_id CHAR(36) NOT NULL,
-    room_id CHAR(36),
+    household_id VARCHAR(255) NOT NULL,
+    room_id VARCHAR(255),
     name VARCHAR(100) NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -38,7 +38,7 @@ CREATE INDEX ix_cabinet_room_id ON cabinet(room_id);
 
 CREATE TABLE IF NOT EXISTS item (
     id CHAR(36) PRIMARY KEY,
-    household_id CHAR(36) NOT NULL,
+    household_id VARCHAR(255) NOT NULL,
     category_id CHAR(36),
     name VARCHAR(100) NOT NULL,
     description VARCHAR(200),
@@ -60,7 +60,7 @@ CREATE INDEX ix_item_category_id ON item(category_id);
 
 CREATE TABLE IF NOT EXISTS item_cabinet_quantity (
     id CHAR(36) PRIMARY KEY,
-    household_id CHAR(36) NOT NULL,
+    household_id VARCHAR(255) NOT NULL,
     item_id CHAR(36) NOT NULL,
     cabinet_id CHAR(36) NULL,
     quantity INTEGER NOT NULL DEFAULT 0,
@@ -89,7 +89,7 @@ CREATE INDEX ix_item_cabinet_quantity_cabinet_id ON item_cabinet_quantity(cabine
 CREATE TABLE IF NOT EXISTS record (
     id CHAR(36) PRIMARY KEY,
     item_id CHAR(36) NULL,
-    household_id CHAR(36) NOT NULL,
+    household_id VARCHAR(255) NOT NULL,
     user_name VARCHAR(100) NOT NULL,
     operate_type SMALLINT NOT NULL,
     entity_type SMALLINT NOT NULL,

@@ -27,7 +27,7 @@ async def create_record(
     created_at_utc8 = datetime.now(UTC_PLUS_8)
     
     new_record = Record(
-        household_id=uuid_to_str(request_model.household_id),
+        household_id=request_model.household_id,
         item_id=uuid_to_str(request_model.item_id) if request_model.item_id is not None else None,
         user_name=request_model.user_name,
         operate_type=request_model.operate_type,
@@ -60,7 +60,7 @@ async def read_record(
     request_model: ReadRecordRequestModel,
     db: AsyncSession,
 ) -> List[RecordResponseModel]:
-    query = select(Record).where(Record.household_id == uuid_to_str(request_model.household_id))
+    query = select(Record).where(Record.household_id == request_model.household_id)
     query = _apply_record_filters(query, request_model)
     query = query.order_by(Record.created_at.desc())
     result = await db.execute(query)
@@ -119,7 +119,7 @@ async def delete_record(
     request_model: ReadRecordRequestModel,
     db: AsyncSession,
 ) -> None:
-    query = delete(Record).where(Record.household_id == uuid_to_str(request_model.household_id))
+    query = delete(Record).where(Record.household_id == request_model.household_id)
     query = _apply_record_filters(query, request_model)
     result = await db.execute(query)
     await db.flush()

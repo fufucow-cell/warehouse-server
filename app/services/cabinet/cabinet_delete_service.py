@@ -19,7 +19,7 @@ async def delete_cabinet(
     request_model: DeleteCabinetRequestModel,
     db: AsyncSession
 ) -> None:
-    household_id_str = uuid_to_str(request_model.household_id)
+    household_id_str = request_model.household_id
     
     # 如果没有提供 cabinets 列表，返回（不执行任何操作）
     if not request_model.cabinets or len(request_model.cabinets) == 0:

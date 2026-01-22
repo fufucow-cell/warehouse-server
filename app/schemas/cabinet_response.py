@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class CabinetResponseModel(BaseModel):
     cabinet_id: Optional[UUID]
-    room_id: Optional[UUID]
+    room_id: Optional[str]
     name: str
     quantity: Optional[int] = None
     items: Optional[List[ItemInCabinetInfo]] = None

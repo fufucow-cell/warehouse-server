@@ -14,7 +14,7 @@ async def read_category(
     request_model: ReadCategoryRequestModel,
     db: AsyncSession
 ) -> List[CategoryResponseModel]:
-    query = select(Category).where(Category.household_id == uuid_to_str(request_model.household_id))
+    query = select(Category).where(Category.household_id == request_model.household_id)
     
     if request_model.category_id is not None:
         query = query.where(Category.id == uuid_to_str(request_model.category_id))

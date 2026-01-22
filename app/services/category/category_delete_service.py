@@ -20,7 +20,7 @@ async def delete_category(
     result = await db.execute(
         select(Category).where(
             Category.id == uuid_to_str(request_model.category_id),
-            Category.household_id == uuid_to_str(request_model.household_id)
+            Category.household_id == request_model.household_id
         )
     )
     category = result.scalar_one_or_none()

@@ -31,13 +31,10 @@ async def read_cabinet_by_room(
     include_items: bool = True
 ) -> List[RoomsResponseModel]:
     # 取出 cabinets
-    household_id_str = uuid_to_str(request_model.household_id)
-    cabinets_query = select(Cabinet).where(Cabinet.household_id == household_id_str)
-    room_ids: List[UUID] = []
+    cabinets_query = select(Cabinet).where(Cabinet.household_id == request_model.household_id)
 
     if request_model.room_id is not None:
-        cabinets_query = cabinets_query.where(Cabinet.room_id == uuid_to_str(request_model.room_id))
-        room_ids.append(request_model.room_id)
+        cabinets_query = cabinets_query.where(Cabinet.room_id == request_model.room_id)
     
     result = await db.execute(cabinets_query)
     all_cabinets = list(result.scalars().all())
@@ -50,7 +47,7 @@ async def read_cabinet_by_room(
     # 包含所有 cabinets 的 quantities 和所有 cabinet_id 為 NULL 的 quantities
     from sqlalchemy import or_
     quantities_query = select(ItemCabinetQuantity).where(
-        ItemCabinetQuantity.household_id == household_id_str
+        ItemCabinetQuantity.household_id == request_model.household_id
     ).where(
         or_(
             ItemCabinetQuantity.cabinet_id.in_(all_cabinet_ids),
@@ -68,12 +65,12 @@ async def read_cabinet_by_room(
         all_item_ids = list(set([qty.item_id for qty in all_quantities]))
 
         # 取出 items
-        items_query = select(Item).where(Item.household_id == household_id_str).where(Item.id.in_(all_item_ids))
+        items_query = select(Item).where(Item.household_id == request_model.household_id).where(Item.id.in_(all_item_ids))
         all_items_result = await db.execute(items_query)
         all_items = list(all_items_result.scalars().all())
 
         # 取得所有分類
-        categories_query = select(Category).where(Category.household_id == household_id_str)
+        categories_query = select(Category).where(Category.household_id == request_model.household_id)
         all_category_result = await db.execute(categories_query)
         all_category = list(all_category_result.scalars().all())
         _group_items_by_cabinet(result_rooms, all_items, all_category, all_quantities, db)

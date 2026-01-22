@@ -9,7 +9,7 @@ class ItemResponseModel(BaseModel):
     id: UUID
     cabinet_id: Optional[UUID]
     cabinet_name: Optional[str]
-    cabinet_room_id: Optional[UUID] = None
+    cabinet_room_id: Optional[str] = None
     category: Optional[CategoryResponseModel] = None
     name: str
     description: Optional[str]

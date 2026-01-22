@@ -9,7 +9,7 @@ class ItemCabinetQuantity(Base):
     __tablename__ = "item_cabinet_quantity"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
-    household_id = Column(String(36), nullable=False, index=True)
+    household_id = Column(String(255), nullable=False, index=True)
     item_id = Column(String(36), ForeignKey("item.id", ondelete="CASCADE"), nullable=False, index=True)
     cabinet_id = Column(String(36), ForeignKey("cabinet.id", ondelete="SET NULL"), nullable=True, index=True)
     quantity = Column(Integer, nullable=False, default=0)

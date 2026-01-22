@@ -46,7 +46,7 @@ async def create_item(
     
     # 創建 item（不再包含 cabinet_id，通過 item_cabinet_quantity 表維護）
     new_item = Item(
-        household_id=uuid_to_str(request_model.household_id),
+        household_id=request_model.household_id,
         category_id=uuid_to_str(request_model.category_id) if request_model.category_id is not None else None,
         name=request_model.name,
         description=request_model.description,
@@ -62,7 +62,7 @@ async def create_item(
     quantity = request_model.quantity if request_model.quantity > 0 else 0
     cabinet_id = uuid_to_str(request_model.cabinet_id) if request_model.cabinet_id is not None else None
     item_cabinet_qty = ItemCabinetQuantity(
-            household_id=uuid_to_str(request_model.household_id),
+            household_id=request_model.household_id,
             item_id=new_item.id,
             cabinet_id=cabinet_id,
             quantity=quantity,
@@ -136,8 +136,7 @@ async def recognize_item_from_image(
 ) -> Optional[ItemOpenAIRecognitionResult]:
     try:
         # 查詢該 household 的所有 category
-        household_id_str = uuid_to_str(request_model.household_id)
-        categories_query = select(Category).where(Category.household_id == household_id_str)
+        categories_query = select(Category).where(Category.household_id == request_model.household_id)
         categories_result = await db.execute(categories_query)
         categories = categories_result.scalars().all()
         
@@ -311,8 +310,7 @@ async def recognize_item_from_image_test(
 ) -> Optional[ItemOpenAIRecognitionResult]:
     try:
         # 查詢該 household 的所有 category
-        household_id_str = uuid_to_str(request_model.household_id)
-        categories_query = select(Category).where(Category.household_id == household_id_str)
+        categories_query = select(Category).where(Category.household_id == request_model.household_id)
         categories_result = await db.execute(categories_query)
         categories = categories_result.scalars().all()
         

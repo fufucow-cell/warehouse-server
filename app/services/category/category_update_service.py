@@ -25,7 +25,7 @@ async def update_category(
     result = await db.execute(
         select(Category).where(
             Category.id == uuid_to_str(request_model.category_id),
-            Category.household_id == uuid_to_str(request_model.household_id)
+            Category.household_id == request_model.household_id
         )
     )
     category = result.scalar_one_or_none()
@@ -124,7 +124,7 @@ async def _check_duplicate_category_name(
     db: AsyncSession
 ) -> None:
     duplicate_query = select(Category).where(
-        Category.household_id == uuid_to_str(household_id),
+        Category.household_id == household_id,
         Category.name == name
     )
     if parent_id is not None:

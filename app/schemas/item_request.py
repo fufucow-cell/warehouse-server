@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, field_validator
 
 class CreateItemRequestModel(BaseModel):
-    household_id: UUID
+    household_id: str
     cabinet_id: Optional[UUID] = None
     category_id: Optional[UUID] = None
     name: str
@@ -14,12 +14,12 @@ class CreateItemRequestModel(BaseModel):
     user_name: str
 
 class ReadItemRequestModel(BaseModel):
-    household_id: UUID
-    room_id: Optional[UUID] = None
+    household_id: str
+    room_id: Optional[str] = None
 
 class UpdateItemNormalRequestModel(BaseModel):
     item_id: UUID
-    household_id: UUID
+    household_id: str
     category_id: Optional[Union[str, UUID]] = None
     name: Optional[str] = None
     description: Optional[str] = None
@@ -33,7 +33,7 @@ class UpdateItemQuantityCabinet(BaseModel):
 
 class UpdateItemQuantityRequestModel(BaseModel):
     item_id: UUID
-    household_id: UUID
+    household_id: str
     cabinets: List[UpdateItemQuantityCabinet]
     user_name: str
 
@@ -52,20 +52,20 @@ class UpdateItemPositionCabinet(BaseModel):
 
 class UpdateItemPositionRequestModel(BaseModel):
     item_id: UUID
-    household_id: UUID
+    household_id: str
     cabinets: List[UpdateItemPositionCabinet]
     user_name: str
 
 class DeleteItemRequestModel(BaseModel):
     id: UUID
-    household_id: UUID
+    household_id: str
     user_name: str
 
 
 class CabinetInfo(BaseModel):
     cabinet_id: Optional[UUID] = None
     cabinet_name: Optional[str] = None
-    room_id: Optional[UUID] = None
+    room_id: Optional[str] = None
 
 
 class CabinetUpdateInfo(BaseModel):
@@ -84,7 +84,7 @@ class CategoryUpdateInfo(BaseModel):
 
 
 class CreateItemSmartRequestModel(BaseModel):
-    household_id: UUID
+    household_id: str
     image: str  # base64 encoded image
     language: str
     user_name: str

@@ -10,7 +10,7 @@ class Category(Base):
     __tablename__ = "category"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
-    household_id = Column(String(36), nullable=False, index=True)
+    household_id = Column(String(255), nullable=False, index=True)
     name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     parent_id = Column(String(36), ForeignKey("category.id", ondelete="CASCADE"), nullable=True, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

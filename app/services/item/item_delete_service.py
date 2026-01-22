@@ -22,7 +22,7 @@ async def delete_item(
     result = await db.execute(
         select(Item).where(
             Item.id == uuid_to_str(request_model.id),
-            Item.household_id == uuid_to_str(request_model.household_id)
+            Item.household_id == request_model.household_id
         )
     )
     item = result.scalar_one_or_none()

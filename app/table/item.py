@@ -11,7 +11,7 @@ class Item(Base):
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
     category_id = Column(String(36), ForeignKey("category.id", ondelete="SET NULL"), nullable=True, index=True)
-    household_id = Column(String(36), nullable=False, index=True)
+    household_id = Column(String(255), nullable=False, index=True)
     name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     description = Column(String(settings.TABLE_MAX_LENGTH_DESCRIPTION), nullable=True)
     min_stock_alert = Column(Integer, nullable=False, default=0)

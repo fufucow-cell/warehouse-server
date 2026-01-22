@@ -36,7 +36,7 @@ async def update_item_normal(
     result = await db.execute(
         select(Item).where(
             Item.id == uuid_to_str(request_model.item_id),
-            Item.household_id == uuid_to_str(request_model.household_id)
+            Item.household_id == request_model.household_id
         )
     )
     item = result.scalar_one_or_none()
@@ -86,8 +86,7 @@ async def update_item_normal(
     old_cabinet_quantity = old_cabinet_quantities_result.scalar_one_or_none()
     old_cabinet_id_uuid = cast(Optional[UUID], old_cabinet_quantity.cabinet_id) if old_cabinet_quantity else None
     
-    old_household_id_uuid = cast(UUID, item.household_id)
-    old_cabinet_info_dict = await get_cabinet_info(old_cabinet_id_uuid, old_household_id_uuid, db)
+    old_cabinet_info_dict = await get_cabinet_info(old_cabinet_id_uuid, item.household_id, db)
     old_cabinet_info = CabinetInfo(
         cabinet_id=old_cabinet_info_dict.get("cabinet_id"),
         cabinet_name=old_cabinet_info_dict.get("cabinet_name"),
@@ -105,7 +104,7 @@ async def update_item_quantity(
     request_model: UpdateItemQuantityRequestModel,
     db: AsyncSession
 ) -> None:
-    household_id = uuid_to_str(request_model.household_id)
+    household_id = request_model.household_id
     result = await db.execute(
         select(Item).where(
             Item.id == uuid_to_str(request_model.item_id),
@@ -206,7 +205,7 @@ async def update_item_position(
     result = await db.execute(
         select(Item).where(
             Item.id == uuid_to_str(request_model.item_id),
-            Item.household_id == uuid_to_str(request_model.household_id)
+            Item.household_id == request_model.household_id
         )
     )
     item = result.scalar_one_or_none()
@@ -225,7 +224,7 @@ async def update_item_position(
     # 一次性查詢所有符合 household_id 的 Cabinet
     cabinets_dict: Dict[str, Cabinet] = {}
     if cabinet_ids_to_verify:
-        household_id_str = uuid_to_str(request_model.household_id)
+        household_id_str = request_model.household_id
         cabinet_ids_str = [uuid_to_str(cid) for cid in cabinet_ids_to_verify]
         cabinet_query = select(Cabinet).where(
             Cabinet.id.in_(cabinet_ids_str),
@@ -405,8 +404,7 @@ async def _update_item_cabinet(
     old_cabinet_quantity = old_cabinet_quantities_result.scalar_one_or_none()
     old_cabinet_id_uuid = cast(Optional[UUID], old_cabinet_quantity.cabinet_id) if old_cabinet_quantity else None
     
-    old_household_id_uuid = cast(UUID, item.household_id)
-    old_cabinet_info_dict = await get_cabinet_info(old_cabinet_id_uuid, old_household_id_uuid, db)
+    old_cabinet_info_dict = await get_cabinet_info(old_cabinet_id_uuid, item.household_id, db)
     old_cabinet_info = CabinetInfo(
         cabinet_id=old_cabinet_info_dict.get("cabinet_id"),
         cabinet_name=old_cabinet_info_dict.get("cabinet_name"),
@@ -463,8 +461,7 @@ async def _update_item_cabinet(
         # 沒有更新，使用舊的 cabinet_id
         new_cabinet_id = old_cabinet_id_uuid
     
-    household_id_uuid = cast(UUID, item.household_id)
-    new_cabinet_info_dict = await get_cabinet_info(new_cabinet_id, household_id_uuid, db)
+    new_cabinet_info_dict = await get_cabinet_info(new_cabinet_id, item.household_id, db)
     new_cabinet_info = CabinetInfo(
         cabinet_id=new_cabinet_info_dict.get("cabinet_id"),
         cabinet_name=new_cabinet_info_dict.get("cabinet_name"),
@@ -483,7 +480,7 @@ async def _update_item_category_normal(
     db: AsyncSession
 ) -> CategoryUpdateInfo:
     old_category_id_uuid = cast(Optional[UUID], item.category_id) if item.category_id else None
-    old_category_info_dict = await get_category_info(old_category_id_uuid, cast(UUID, item.household_id), db)
+    old_category_info_dict = await get_category_info(old_category_id_uuid, item.household_id, db)
     old_category_info = CategoryInfo(
         category_id=old_category_info_dict.get("category_id"),
         level_name=old_category_info_dict.get("level_name")
@@ -500,7 +497,7 @@ async def _update_item_category_normal(
             category_result = await db.execute(
                 select(Category).where(
                     Category.id == category_id_str,
-                    Category.household_id == uuid_to_str(item.household_id)
+                    Category.household_id == item.household_id
                 )
             )
             category = category_result.scalar_one_or_none()
@@ -511,7 +508,7 @@ async def _update_item_category_normal(
             item.category_id = category_id_str
     
     new_category_id_uuid = cast(Optional[UUID], item.category_id) if item.category_id else None
-    new_category_info_dict = await get_category_info(new_category_id_uuid, cast(UUID, item.household_id), db)
+    new_category_info_dict = await get_category_info(new_category_id_uuid, item.household_id, db)
     new_category_info = CategoryInfo(
         category_id=new_category_info_dict.get("category_id"),
         level_name=new_category_info_dict.get("level_name")
@@ -609,7 +606,7 @@ async def _gen_record_quantity(
     # 为每个 cabinet 创建一条记录
     for cabinet_id, cabinet_name, old_quantity, new_quantity in cabinet_quantity_changes:
         new_record = Record(
-            household_id=uuid_to_str(request_model.household_id),
+            household_id=request_model.household_id,
             item_id=uuid_to_str(item_id),
             user_name=request_model.user_name,
             operate_type=OperateType.UPDATE.value,
@@ -658,7 +655,7 @@ async def _gen_record_position(
         if cabinet_req.is_delete:
             # 如果 is_delete 为 true，只生成删除记录
             delete_record = Record(
-                household_id=uuid_to_str(request_model.household_id),
+                household_id=request_model.household_id,
                 item_id=uuid_to_str(old_item_model.id),
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,
@@ -673,7 +670,7 @@ async def _gen_record_position(
         else:
             # 正常的搬移逻辑，创建一条记录
             new_record = Record(
-                household_id=uuid_to_str(request_model.household_id),
+                household_id=request_model.household_id,
                 item_id=uuid_to_str(old_item_model.id),
                 user_name=request_model.user_name,
                 operate_type=OperateType.UPDATE.value,

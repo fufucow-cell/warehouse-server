@@ -10,8 +10,8 @@ class Cabinet(Base):
     __tablename__ = "cabinet"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
-    room_id = Column(String(36), nullable=True, index=True)
-    household_id = Column(String(36), nullable=False, index=True)
+    room_id = Column(String(255), nullable=True, index=True)
+    household_id = Column(String(255), nullable=False, index=True)
     name = Column(String(settings.TABLE_MAX_LENGTH_NAME), nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)

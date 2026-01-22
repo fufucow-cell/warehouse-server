@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class RecordResponseModel(BaseModel):
     id: UUID
-    household_id: UUID
+    household_id: str
     item_id: Optional[UUID] = None
     user_name: Optional[str] = None
     created_at: Optional[int] = None  # epoch milliseconds

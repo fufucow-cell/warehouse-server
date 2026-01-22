@@ -21,8 +21,8 @@ async def create_cabinet(
     now_utc8 = datetime.now(UTC_PLUS_8)
     
     new_cabinet = Cabinet(
-        household_id=uuid_to_str(request_model.household_id),
-        room_id=uuid_to_str(request_model.room_id),
+        household_id=request_model.household_id,
+        room_id=request_model.room_id,
         name=request_model.name,
         created_at=now_utc8,
         updated_at=now_utc8,
@@ -42,7 +42,7 @@ async def create_cabinet(
     
     return CabinetResponseModel(
         cabinet_id=cast(UUID, new_cabinet.id),
-        room_id=cast(Optional[UUID], new_cabinet.room_id),
+        room_id=cast(Optional[str], new_cabinet.room_id),
         name=cast(str, new_cabinet.name),
         quantity=0,
         items=[]
@@ -51,7 +51,7 @@ async def create_cabinet(
 # ==================== Private Method ====================
 
 async def _gen_record(
-    household_id: UUID,
+    household_id: str,
     item_id: Optional[UUID],
     user_name: str,
     operate_type: int,
