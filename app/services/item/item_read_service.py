@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Set, cast, Any
 from uuid import UUID
+from urllib.parse import urlparse
 from app.schemas.cabinet_response import CabinetInRoomResponseModel, CabinetResponseModel, RoomsResponseModel
 from app.schemas.item_response import ItemInCabinetInfo
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,24 +19,39 @@ from app.core.core_config import settings
 
 # ==================== Helper Functions ====================
 
-def _add_domain_to_photo(photo: Optional[str]) -> Optional[str]:
-    """给照片路径添加 domain"""
+def _trim_domain(photo: Optional[str]) -> Optional[str]:
+    """
+    移除 photo 路径中 /upload 前面的任何 domain，只返回相对路径
+    例如：http://127.0.0.1:8003/uploads/DEV/xxx.jpg -> /uploads/DEV/xxx.jpg
+          https://example.com/uploads/DEV/xxx.jpg -> /uploads/DEV/xxx.jpg
+          http://any-domain.com/uploads/DEV/xxx.jpg -> /uploads/DEV/xxx.jpg
+    """
     if not photo:
         return None
     
-    # 如果已经是完整 URL，直接返回
+    # 如果是完整 URL，先提取路径部分
     if photo.startswith("http://") or photo.startswith("https://"):
-        return photo
+        parsed = urlparse(photo)
+        path = parsed.path
+    else:
+        path = photo
     
-    # 如果是相对路径，添加 domain
-    if settings.BASE_URL:
-        # 确保 BASE_URL 不以 / 结尾，photo 以 / 开头
-        base_url = settings.BASE_URL.rstrip('/')
-        photo_path = photo if photo.startswith('/') else f'/{photo}'
-        return f"{base_url}{photo_path}"
+    # 在路径中查找 /upload 或 /uploads 的位置（不区分大小写）
+    path_lower = path.lower()
     
-    # 如果没有配置 BASE_URL，返回原始路径
-    return photo
+    # 查找 /upload 的位置（优先查找 /uploads/，然后是 /upload/，最后是 /uploads 或 /upload）
+    for pattern in ['/uploads/', '/upload/', '/uploads', '/upload']:
+        idx = path_lower.find(pattern)
+        if idx != -1:
+            # 找到 /upload 的位置，返回从 /upload 开始的部分（保持原始大小写）
+            return path[idx:]
+    
+    # 如果没有找到 /upload，检查是否以 / 开头
+    if path.startswith('/'):
+        return path
+    
+    # 如果不是以 / 开头，添加 /
+    return f'/{path}'
 
 
 # ==================== Read ====================
@@ -155,7 +171,7 @@ async def build_item_response(
         description=cast(Optional[str], item.description),
         quantity=quantity,
         min_stock_alert=cast(int, item.min_stock_alert),
-        photo=_add_domain_to_photo(cast(Optional[str], item.photo))
+        photo=_trim_domain(cast(Optional[str], item.photo))
     )
 
 
@@ -332,7 +348,7 @@ def _gen_item_with_category_tree(
                 description=cast(Optional[str], item.description),
                 quantity=0,  # 初始值，後續會更新
                 min_stock_alert=cast(int, item.min_stock_alert),
-                photo=_add_domain_to_photo(cast(Optional[str], item.photo)),
+                photo=_trim_domain(cast(Optional[str], item.photo)),
                 category=item_category_model
             )
         )
@@ -457,7 +473,7 @@ def _group_items_by_cabinet_for_items(
                         description=item.description,
                         quantity=quantity,  # 使用該 cabinet 中的 quantity
                         min_stock_alert=item.min_stock_alert,
-                        photo=_add_domain_to_photo(item.photo),
+                        photo=_trim_domain(item.photo),
                         category=item.category
                     )
                     cabinet_items.append(cabinet_item)
@@ -515,7 +531,7 @@ def _group_items_by_cabinet_for_items(
                     description=item.description,
                     quantity=quantity,
                     min_stock_alert=item.min_stock_alert,
-                    photo=_add_domain_to_photo(item.photo),
+                    photo=_trim_domain(item.photo),
                     category=item.category
                 )
                 unbound_items.append(unbound_item)
